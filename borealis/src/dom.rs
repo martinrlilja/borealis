@@ -1,5 +1,4 @@
 
-use std::ascii::AsciiExt;
 use std::borrow::Cow;
 use std::cell::RefCell;
 use std::collections::HashSet;
@@ -13,12 +12,6 @@ use html5ever::tendril::StrTendril;
 use html5ever::serialize::{Serializable, Serializer, TraversalScope};
 
 use string_cache::QualName;
-
-#[derive(Debug)]
-pub enum Html {
-    Node(Node),
-    Nodes(Vec<Node>),
-}
 
 #[derive(Debug, PartialEq)]
 pub enum ElementType {
