@@ -5,15 +5,9 @@ use html5ever;
 use html5ever::tendril::StrTendril;
 use html5ever::serialize::{Serializable, Serializer, TraversalScope};
 
-use string_cache::QualName;
+use string_cache::{Atom, QualName};
 
-use super::Document;
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum ElementType {
-    Normal(Vec<Node>),
-    Template(Document),
-}
+use super::{Document, TreeHandle};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Node {
@@ -22,23 +16,169 @@ pub enum Node {
     Element(ElementNode),
 }
 
+impl Node {
+    pub fn expect_text(&self) -> &TextNode {
+        if let &Node::Text(ref node) = self {
+            node
+        } else {
+            panic!("Expected text node, got: {:?}", self);
+        }
+    }
+
+    pub fn expect_comment(&self) -> &CommentNode {
+        if let &Node::Comment(ref node) = self {
+            node
+        } else {
+            panic!("Expected comment node, got: {:?}", self);
+        }
+    }
+
+    pub fn expect_element(&self) -> &ElementNode {
+        if let &Node::Element(ref node) = self {
+            node
+        } else {
+            panic!("Expected element node, got: {:?}", self);
+        }
+    }
+
+    pub fn expect_element_mut(&mut self) -> &mut ElementNode {
+        if let &mut Node::Element(ref mut node) = self {
+            node
+        } else {
+            panic!("Expected element node, got: {:?}", self);
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Attribute {
     name:  QualName,
     value: StrTendril,
 }
 
+impl Attribute {
+    pub fn new(name: QualName, value: StrTendril) -> Attribute {
+        Attribute {
+            name:  name,
+            value: value,
+        }
+    }
+
+    pub fn new_string(name: String, value: String) -> Attribute {
+        Attribute::new(QualName::new(ns!(html), Atom::from(name)), StrTendril::from(value))
+    }
+
+    pub fn new_str(name: &str, value: &str) -> Attribute {
+        Attribute::new_string(name.to_owned(), value.to_owned())
+    }
+
+    pub fn name(&self) -> &QualName {
+        &self.name
+    }
+
+    pub fn value(&self) -> &StrTendril {
+        &self.value
+    }
+}
+
+impl From<html5ever::Attribute> for Attribute {
+    fn from(attr: html5ever::Attribute) -> Attribute {
+        Attribute {
+            name:  attr.name,
+            value: attr.value,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct TextNode(StrTendril);
 
+impl TextNode {
+    pub fn new(text: StrTendril) -> TextNode {
+        TextNode(text)
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct CommentNode(StrTendril);
+
+impl CommentNode {
+    pub fn new(comment: StrTendril) -> CommentNode {
+        CommentNode(comment)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum ElementType {
+    Normal(Vec<TreeHandle<Node>>),
+    Template(TreeHandle<Document>),
+}
+
+impl ElementType {
+    pub fn new_normal() -> ElementType {
+        ElementType::Normal(Vec::new())
+    }
+
+    pub fn new_template() -> ElementType {
+        ElementType::Template(TreeHandle::new(Document::new(None, None)))
+    }
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ElementNode {
     name:         QualName,
     element_type: ElementType,
     attributes:   Vec<Attribute>,
+}
+
+impl ElementNode {
+    pub fn new(name: QualName, element_type: ElementType, attributes: Vec<Attribute>) -> ElementNode {
+        ElementNode {
+            name:         name,
+            element_type: element_type,
+            attributes:   attributes,
+        }
+    }
+
+    pub fn expect_normal(&self) -> &[TreeHandle<Node>] {
+        if let ElementType::Normal(ref children) = self.element_type {
+            children
+        } else {
+            panic!("Expected normal element, got: {:?}", self);
+        }
+    }
+
+    pub fn expect_normal_mut(&mut self) -> &mut Vec<TreeHandle<Node>> {
+        if let ElementType::Normal(ref mut children) = self.element_type {
+            children
+        } else {
+            panic!("Expected normal element, got: {:?}", self);
+        }
+    }
+
+    pub fn expect_template(&self) -> &TreeHandle<Document> {
+        if let ElementType::Template(ref document) = self.element_type {
+            document
+        } else {
+            panic!("Expected template element, got: {:?}", self);
+        }
+    }
+
+    pub fn name(&self) -> &QualName {
+        &self.name
+    }
+
+    pub fn element_type(&self) -> &ElementType {
+        &self.element_type
+    }
+
+    pub fn attributes(&self) -> &[Attribute] {
+        &self.attributes
+    }
+
+    pub fn attributes_mut(&mut self) -> &mut Vec<Attribute> {
+        &mut self.attributes
+    }
 }
 
 impl Serializable for Node {

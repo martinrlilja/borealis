@@ -7,21 +7,40 @@ use html5ever::serialize::{Serializable, Serializer, TraversalScope};
 
 use string_cache::QualName;
 
-use super::Doctype;
-use super::Node;
+use super::{Doctype, Node, TreeHandle};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Document {
     doctype: Option<Doctype>,
-    child:   Option<Box<Node>>,
+    child:   Option<TreeHandle<Node>>,
 }
 
 impl Document {
-    pub fn new(doctype: Option<Doctype>, child: Option<Node>) -> Document {
+    pub fn new(doctype: Option<Doctype>, child: Option<TreeHandle<Node>>) -> Document {
         Document {
             doctype: doctype,
-            child:   child.map(|c| Box::new(c)),
+            child:   child,
         }
+    }
+
+    pub fn doctype(&self) -> Option<&Doctype> {
+        self.doctype.as_ref()
+    }
+
+    pub fn child(&self) -> Option<&TreeHandle<Node>> {
+        self.child.as_ref()
+    }
+
+    pub fn set_doctype(&mut self, doctype: Doctype) {
+        self.doctype = Some(doctype);
+    }
+
+    pub fn set_child(&mut self, node: TreeHandle<Node>) {
+        self.child = Some(node);
+    }
+
+    pub fn unset_child(&mut self) {
+        self.child = None;
     }
 }
 
@@ -39,7 +58,7 @@ impl Serializable for Document {
                 if let Some(ref child) = self.child {
                     try!(child.clone().serialize(serializer, TraversalScope::IncludeNode));
                 }
-                
+
                 Ok(())
             },
         }

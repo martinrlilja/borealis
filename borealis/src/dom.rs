@@ -6,189 +6,14 @@ use std::io::{self, Write};
 use std::ops::Deref;
 use std::rc::{Rc, Weak};
 
-use html5ever::Attribute;
+use html5ever;
 use html5ever::tree_builder::{TreeSink, QuirksMode, NodeOrText};
 use html5ever::tendril::StrTendril;
 use html5ever::serialize::{Serializable, Serializer, TraversalScope};
 
 use string_cache::QualName;
 
-#[derive(Debug, PartialEq)]
-pub enum ElementType {
-    Normal,
-    Template(Handle),
-    Script { already_started: bool },
-}
-
-#[derive(Debug, PartialEq)]
-pub enum NodeType {
-    Document(Vec<Handle>),
-    Doctype { name: StrTendril, public_id: StrTendril, system_id: StrTendril },
-    Text(StrTendril),
-    Comment(StrTendril),
-    Element {
-        name:         QualName,
-        element_type: ElementType,
-        attributes:   Vec<Attribute>,
-        children:     Vec<Handle>,
-    },
-}
-
-#[derive(Debug)]
-pub struct Node {
-    node_type: NodeType,
-    parent:    Option<Weak<RefCell<Node>>>,
-}
-
-impl Node {
-    pub fn new(node_type: NodeType) -> Node {
-        Node {
-            node_type: node_type,
-            parent:    None,
-        }
-    }
-
-    fn node_type(&self) -> &NodeType {
-        &self.node_type
-    }
-
-    fn parent(&self) -> Option<Handle> {
-        match self.parent {
-            Some(ref parent) => {
-                parent.upgrade().map(Handle)
-            },
-            None => None
-        }
-    }
-
-    fn set_parent(&mut self, parent: &Handle) {
-        self.parent = Some(Rc::downgrade(parent));
-    }
-
-    fn unset_parent(&mut self) {
-        self.parent = None;
-    }
-
-    fn children(&self) -> &Vec<Handle> {
-        if let NodeType::Element { ref children, .. } = self.node_type {
-            children
-        } else if let NodeType::Document(ref children) = self.node_type {
-            children
-        } else {
-            panic!("Node::children(self: {:?}), self cannot have children.", self);
-        }
-    }
-
-    fn children_mut(&mut self) -> &mut Vec<Handle> {
-        if let NodeType::Element { ref mut children, .. } = self.node_type {
-            children
-        } else if let NodeType::Document(ref mut children) = self.node_type {
-            children
-        } else {
-            panic!("Node::children_mut(self: {:?}), self cannot have children.", self);
-        }
-    }
-}
-
-impl PartialEq for Node {
-    fn eq(&self, other: &Node) -> bool {
-        self.node_type == other.node_type
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct Handle(Rc<RefCell<Node>>);
-
-impl Handle {
-    fn new(node_type: NodeType) -> Handle {
-        Handle(Rc::new(RefCell::new(Node::new(node_type))))
-    }
-
-    pub fn append(&self, child: Handle) {
-        let mut node     = self.borrow_mut();
-        let mut children = node.children_mut();
-
-        child.borrow_mut().set_parent(self);
-        children.push(child);
-    }
-
-    pub fn append_before(&self, before: Handle, child: Handle) {
-        let mut node     = self.borrow_mut();
-        let mut children = node.children_mut();
-
-        let index = children.iter().position(|e| *e == before)
-            .expect(&format!("Node::append_before(self: {:?}, before: {:?}, child: {:?}), before is not child of self.",
-            self, before, child));
-
-        child.borrow_mut().set_parent(self);
-        children.insert(index, child);
-    }
-
-    pub fn remove_child(&self, child: Handle) {
-        let mut node     = self.borrow_mut();
-        let mut children = node.children_mut();
-
-        let index = children.iter().position(|e| *e == child)
-            .expect(&format!("Node::remove:child(self: {:?}, child: {:?}), child is not child of parent.", self, child));
-
-        children.remove(index);
-        child.borrow_mut().unset_parent();
-    }
-}
-
-impl Deref for Handle {
-    type Target = Rc<RefCell<Node>>;
-
-    fn deref(&self) -> &Rc<RefCell<Node>> {
-        &self.0
-    }
-}
-
-impl Serializable for Handle {
-    fn serialize<'wr, Wr: Write>(&self, serializer: &mut Serializer<'wr, Wr>,
-                                 traversal_scope: TraversalScope) -> io::Result<()>
-    {
-        let node = self.borrow();
-        match (traversal_scope, node.node_type()) {
-            (_, &NodeType::Element { ref name, ref attributes, ref children, .. }) => {
-                if traversal_scope == TraversalScope::IncludeNode {
-                    try!(serializer.start_elem(name.clone(),
-                        attributes.iter().map(|a| (&a.name, &a.value[..]))));
-                }
-
-                for handle in children.iter() {
-                    try!(handle.serialize(serializer, TraversalScope::IncludeNode));
-                }
-
-                if traversal_scope == TraversalScope::IncludeNode {
-                    try!(serializer.end_elem(name.clone()));
-                }
-
-                Ok(())
-            },
-            (TraversalScope::ChildrenOnly, &NodeType::Document(ref children)) => {
-                for handle in children.iter() {
-                    try!(handle.serialize(serializer, TraversalScope::IncludeNode));
-                }
-
-                Ok(())
-            },
-            (TraversalScope::ChildrenOnly, _) => Ok(()),
-            (TraversalScope::IncludeNode, &NodeType::Doctype { ref name, .. }) => {
-                serializer.write_doctype(&name)
-            },
-            (TraversalScope::IncludeNode, &NodeType::Text(ref text)) => {
-                serializer.write_text(&text)
-            },
-            (TraversalScope::IncludeNode, &NodeType::Comment(ref comment)) => {
-                serializer.write_comment(&comment)
-            },
-            (TraversalScope::IncludeNode, &NodeType::Document(_)) => {
-                panic!("Handle::serialize(self: {:?}), cannot serialize document.", self);
-            }
-        }
-    }
-}
+use html::{Attribute, CommentNode, Doctype, Document, ElementNode, ElementType, Handle, Node, ParentHandle, TextNode, TreeHandle};
 
 #[derive(Debug)]
 pub struct Dom {
@@ -200,9 +25,37 @@ pub struct Dom {
 impl Dom {
     pub fn new() -> Dom {
         Dom {
-            document:    Handle::new(NodeType::Document(Vec::new())),
+            document:    Handle::new_document(Document::new(None, None)),
             errors:      Vec::new(),
             quirks_mode: QuirksMode::NoQuirks
+        }
+    }
+
+    fn node_or_text_as_handle(child: &NodeOrText<Handle>) -> Handle {
+        match child {
+            &NodeOrText::AppendText(ref text) => Handle::new_node(Node::Text(TextNode::new(text.clone()))),
+            &NodeOrText::AppendNode(ref node) => node.clone(),
+        }
+    }
+
+    fn remove_child_from_parent(parent: &ParentHandle, child: &Handle) {
+        match *parent {
+            ParentHandle::DocumentHandle(ref document) => {
+                let document = document.upgrade();
+                assert_eq!(document.borrow().child(), Some(child.expect_node()));
+
+                document.borrow_mut().unset_child();
+            },
+            ParentHandle::NodeHandle(ref node) => {
+                let node         = node.upgrade();
+                let mut node     = node.borrow_mut();
+                let mut children = node.expect_element_mut().expect_normal_mut();
+                let index        = children.iter().position(|e| Handle::NodeHandle(e.clone()) == *child)
+                    .expect(&format!("Dom::remove_child_from_parent(parent: {:?}, child: {:?}), child is child of parent.",
+                    parent, child));
+
+                children.remove(index);
+            },
         }
     }
 }
@@ -230,11 +83,7 @@ impl TreeSink for Dom {
     }
 
     fn get_template_contents(&self, target: Handle) -> Handle {
-        if let NodeType::Element { element_type: ElementType::Template(ref contents), .. } = target.borrow().node_type {
-            contents.clone()
-        } else {
-            panic!("Dom::get_template_contents(target: {:?}), target is not a template.", target);
-        }
+        Handle::DocumentHandle(target.expect_node().borrow().expect_element().expect_template().clone())
     }
 
     fn set_quirks_mode(&mut self, quirks_mode: QuirksMode) {
@@ -246,107 +95,126 @@ impl TreeSink for Dom {
     }
 
     fn elem_name(&self, target: Handle) -> QualName {
-        if let NodeType::Element { ref name, .. } = target.borrow().node_type {
-            name.clone()
-        } else {
-            panic!("Dom::elem_name(target: {:?}), target is not an element.", target);
-        }
+        target.expect_node().borrow().expect_element().name().clone()
     }
 
-    fn create_element(&mut self, name: QualName, attributes: Vec<Attribute>) -> Handle {
+    fn create_element(&mut self, name: QualName, attributes: Vec<html5ever::Attribute>) -> Handle {
         let element_type = match name {
-            qualname!(html, "script")   => ElementType::Script { already_started: false },
-            qualname!(html, "template") => ElementType::Template(Handle::new(NodeType::Document(Vec::new()))),
-            _ => ElementType::Normal
+            qualname!(html, "template") => ElementType::new_template(),
+            _ => ElementType::new_normal()
         };
 
-        Handle::new(NodeType::Element {
-            name:         name,
-            element_type: element_type,
-            attributes:   attributes,
-            children:     Vec::new(),
-        })
+        Handle::new_node(Node::Element(ElementNode::new(
+            name, element_type, attributes.iter().map(|a| Attribute::from(a.clone())).collect()
+        )))
     }
 
     fn create_comment(&mut self, text: StrTendril) -> Handle {
-        Handle::new(NodeType::Comment(text))
+        Handle::new_node(Node::Comment(CommentNode::new(text)))
     }
 
     fn append(&mut self, parent: Handle, child: NodeOrText<Handle>) {
-        parent.append(match child {
-            NodeOrText::AppendText(text) => Handle::new(NodeType::Text(text)),
-            NodeOrText::AppendNode(node) => node,
-        });
+        let mut child = Dom::node_or_text_as_handle(&child);
+
+        match parent {
+            Handle::DoctypeHandle(_) => panic!("Cannot append to doctype."),
+            Handle::DocumentHandle(ref document) => {
+                document.borrow_mut().set_child(child.expect_node().clone());
+            },
+            Handle::NodeHandle(ref node) => {
+                let child = child.expect_node();
+                child.borrow_mut().set_parent(parent.clone().into());
+                node.borrow_mut().expect_element_mut().expect_normal_mut().push(child.clone());
+            },
+        }
     }
 
     fn append_before_sibling(&mut self, sibling: Handle, child: NodeOrText<Handle>)
         -> Result<(), NodeOrText<Handle>>
     {
-        let node = match child {
-            NodeOrText::AppendText(ref text) => Handle::new(NodeType::Text(text.clone())),
-            NodeOrText::AppendNode(ref node) => node.clone(),
-        };
+        let node         = Dom::node_or_text_as_handle(&child);
 
-        let parent = try!(sibling.borrow().parent().ok_or(child));
-        parent.append_before(sibling, node);
+        let parent       = try!(sibling.expect_node().borrow().parent().ok_or(child)).expect_node();
+        let child        = node.expect_node();
+        let mut children = parent.borrow_mut();
+        let mut children = children.expect_element_mut().expect_normal_mut();
+        let index        = children.iter().position(|e| Handle::NodeHandle(e.clone()) == sibling)
+            .expect(&format!("Dom::append_before_sibling(sibling: {:?}, child: {:?}), before is not child of self.",
+            sibling, child));
+
+        child.borrow_mut().set_parent(ParentHandle::NodeHandle(parent.downgrade()));
+        children.insert(index, child.clone());
+
         Ok(())
     }
 
     fn append_doctype_to_document(&mut self, name: StrTendril, public_id: StrTendril, system_id: StrTendril) {
-        self.document.append(Handle::new(NodeType::Doctype {
-            name:      name,
-            public_id: public_id,
-            system_id: system_id,
-        }));
+        self.document.expect_document().borrow_mut().set_doctype(Doctype::new(
+            name, public_id, system_id
+        ));
     }
 
-    fn add_attrs_if_missing(&mut self, target: Handle, attrs: Vec<Attribute>) {
-        if let NodeType::Element { ref mut attributes, .. } = target.borrow_mut().node_type {
-            let names   = attributes.iter().map(|a| a.name.clone()).collect::<HashSet<_>>();
-            let missing = attrs.into_iter().filter(|a| !names.contains(&a.name));
-            attributes.extend(missing);
-        } else {
-            panic!("Dom::add_attrs_if_missing(target: {:?}, attrs: {:?}), target is not an element.",
-                target, attrs);
-        }
+    fn add_attrs_if_missing(&mut self, target: Handle, attrs: Vec<html5ever::Attribute>) {
+        let mut target     = target.expect_node().borrow_mut();
+        let mut attributes = target.expect_element_mut().attributes_mut();
+
+        let names   = attributes.iter().map(|a| a.name().clone()).collect::<HashSet<_>>();
+        let missing = attrs.into_iter().filter(|a| !names.contains(&a.name));
+        attributes.extend(missing.map(|a| Attribute::from(a.clone())));
     }
 
     fn remove_from_parent(&mut self, target: Handle) {
-        let parent = target.borrow().parent()
-            .expect(&format!("Dom::remove_from_parent(target: {:?}), target has no parent.", target));
-        parent.remove_child(target);
+        match target {
+            Handle::DoctypeHandle(_) => panic!("Cannot remove doctype from parent."),
+            Handle::DocumentHandle(ref child) => {
+                let document = child.borrow();
+                let parent   = document.parent()
+                    .expect(&format!("Dom::remove_from_parent(target: {:?}), target must have a parent.", target));
+
+                Dom::remove_child_from_parent(parent, &target);
+                child.borrow_mut().unset_parent();
+            },
+            Handle::NodeHandle(ref child) => {
+                let node   = child.borrow();
+                let parent = node.parent()
+                    .expect(&format!("Dom::remove_from_parent(target: {:?}), target must have a parent.", target));
+
+                Dom::remove_child_from_parent(parent, &target);
+                child.borrow_mut().unset_parent();
+            },
+        }
     }
 
     fn reparent_children(&mut self, old_parent: Handle, new_parent: Handle) {
-        if let NodeType::Element { ref mut children, .. } = old_parent.borrow_mut().node_type {
-            for child in children.iter() {
-                new_parent.append(child.clone());
-            }
+        match old_parent {
+            Handle::DoctypeHandle(_) => (),
+            Handle::DocumentHandle(ref parent) => {
+                if let Some(child) = parent.borrow().child() {
+                    let child = NodeOrText::AppendNode(Handle::NodeHandle(child.clone()));
+                    self.append(new_parent, child);
+                    parent.borrow_mut().unset_child();
+                }
+            },
+            Handle::NodeHandle(ref parent) => {
+                let mut parent   = parent.borrow_mut();
+                let mut children = parent.expect_element_mut().expect_normal_mut();
 
-            children.clear();
-        } else {
-            panic!("Dom::reparent_children(old_parent: {:?}, new_parent: {:?}), old_parent is not an element.",
-                old_parent, new_parent);
+                for child in children.iter() {
+                    let child = NodeOrText::AppendNode(Handle::NodeHandle(child.clone()));
+                    self.append(new_parent.clone(), child);
+                }
+
+                children.clear();
+            },
         }
     }
 
-    fn mark_script_already_started(&mut self, node: Handle) {
-        if let NodeType::Element {
-                element_type: ElementType::Script {
-                    ref mut already_started, ..
-                }, ..
-            } = node.borrow_mut().node_type
-        {
-            *already_started = true;
-        } else {
-            panic!("Dom::mark_script_already_started(node: {:?}), node is not a script.", node);
-        }
-    }
+    fn mark_script_already_started(&mut self, node: Handle) {}
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Dom, Handle};
+    use super::Dom;
     use html5ever::driver::{parse_document, parse_fragment, Parser, ParseOpts};
     use html5ever::tendril::{TendrilSink};
 
@@ -374,7 +242,6 @@ mod tests {
             .from_utf8();
 
         let output = parser.one(DOCUMENT.as_bytes());
-        panic!("{:?}", output);
     }
 
     #[test]
@@ -383,6 +250,5 @@ mod tests {
             .from_utf8();
 
         let output = parser.one(FRAGMENT.as_bytes());
-        panic!("{:?}", output);
     }
 }
