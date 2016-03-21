@@ -1,19 +1,14 @@
 
 use std::borrow::Cow;
-use std::cell::RefCell;
 use std::collections::HashSet;
-use std::io::{self, Write};
-use std::ops::Deref;
-use std::rc::{Rc, Weak};
 
 use html5ever;
 use html5ever::tree_builder::{TreeSink, QuirksMode, NodeOrText};
 use html5ever::tendril::StrTendril;
-use html5ever::serialize::{Serializable, Serializer, TraversalScope};
 
 use string_cache::QualName;
 
-use html::{Attribute, CommentNode, Doctype, Document, ElementNode, ElementType, Handle, Node, ParentHandle, TextNode, TreeHandle};
+use html::{Attribute, CommentNode, Doctype, Document, ElementNode, ElementType, Handle, Node, ParentHandle, TextNode};
 
 #[derive(Debug)]
 pub struct Dom {
@@ -33,7 +28,9 @@ impl Dom {
 
     fn node_or_text_as_handle(child: &NodeOrText<Handle>) -> Handle {
         match child {
-            &NodeOrText::AppendText(ref text) => Handle::new_node(Node::Text(TextNode::new(text.clone()))),
+            &NodeOrText::AppendText(ref text) => {
+                Handle::new_node(Node::Text(TextNode::new(text.clone())))
+            },
             &NodeOrText::AppendNode(ref node) => node.clone(),
         }
     }
@@ -50,7 +47,7 @@ impl Dom {
                 let node         = node.upgrade();
                 let mut node     = node.borrow_mut();
                 let mut children = node.expect_element_mut().expect_normal_mut();
-                let index        = children.iter().position(|e| Handle::NodeHandle(e.clone()) == *child)
+                let index        = children.iter().position(|e| e.clone().as_handle() == *child)
                     .expect(&format!("Dom::remove_child_from_parent(parent: {:?}, child: {:?}), child is child of parent.",
                     parent, child));
 
@@ -83,7 +80,12 @@ impl TreeSink for Dom {
     }
 
     fn get_template_contents(&self, target: Handle) -> Handle {
-        Handle::DocumentHandle(target.expect_node().borrow().expect_element().expect_template().clone())
+        target.expect_node()
+            .borrow()
+            .expect_element()
+            .expect_template()
+            .clone()
+            .as_handle()
     }
 
     fn set_quirks_mode(&mut self, quirks_mode: QuirksMode) {
@@ -95,7 +97,11 @@ impl TreeSink for Dom {
     }
 
     fn elem_name(&self, target: Handle) -> QualName {
-        target.expect_node().borrow().expect_element().name().clone()
+        target.expect_node()
+            .borrow()
+            .expect_element()
+            .name()
+            .clone()
     }
 
     fn create_element(&mut self, name: QualName, attributes: Vec<html5ever::Attribute>) -> Handle {
@@ -105,7 +111,9 @@ impl TreeSink for Dom {
         };
 
         Handle::new_node(Node::Element(ElementNode::new(
-            name, element_type, attributes.iter().map(|a| Attribute::from(a.clone())).collect()
+            name, element_type,
+            attributes.iter().map(|a| Attribute::from(a.clone()))
+                .collect()
         )))
     }
 
@@ -114,17 +122,22 @@ impl TreeSink for Dom {
     }
 
     fn append(&mut self, parent: Handle, child: NodeOrText<Handle>) {
-        let mut child = Dom::node_or_text_as_handle(&child);
+        let child = Dom::node_or_text_as_handle(&child);
 
         match parent {
             Handle::DoctypeHandle(_) => panic!("Cannot append to doctype."),
             Handle::DocumentHandle(ref document) => {
-                document.borrow_mut().set_child(child.expect_node().clone());
+                document.borrow_mut()
+                    .set_child(child.expect_node().clone());
             },
             Handle::NodeHandle(ref node) => {
                 let child = child.expect_node();
-                child.borrow_mut().set_parent(parent.clone().into());
-                node.borrow_mut().expect_element_mut().expect_normal_mut().push(child.clone());
+                child.borrow_mut()
+                    .set_parent(parent.clone().into());
+                node.borrow_mut()
+                    .expect_element_mut()
+                    .expect_normal_mut()
+                    .push(child.clone());
             },
         }
     }
@@ -138,11 +151,13 @@ impl TreeSink for Dom {
         let child        = node.expect_node();
         let mut children = parent.borrow_mut();
         let mut children = children.expect_element_mut().expect_normal_mut();
-        let index        = children.iter().position(|e| Handle::NodeHandle(e.clone()) == sibling)
+        let index        = children.iter()
+            .position(|e| e.clone().as_handle() == sibling)
             .expect(&format!("Dom::append_before_sibling(sibling: {:?}, child: {:?}), before is not child of self.",
             sibling, child));
 
-        child.borrow_mut().set_parent(ParentHandle::NodeHandle(parent.downgrade()));
+        child.borrow_mut()
+            .set_parent(parent.downgrade().as_handle());
         children.insert(index, child.clone());
 
         Ok(())
@@ -190,7 +205,7 @@ impl TreeSink for Dom {
             Handle::DoctypeHandle(_) => (),
             Handle::DocumentHandle(ref parent) => {
                 if let Some(child) = parent.borrow().child() {
-                    let child = NodeOrText::AppendNode(Handle::NodeHandle(child.clone()));
+                    let child = NodeOrText::AppendNode(child.clone().as_handle());
                     self.append(new_parent, child);
                     parent.borrow_mut().unset_child();
                 }
@@ -200,7 +215,7 @@ impl TreeSink for Dom {
                 let mut children = parent.expect_element_mut().expect_normal_mut();
 
                 for child in children.iter() {
-                    let child = NodeOrText::AppendNode(Handle::NodeHandle(child.clone()));
+                    let child = NodeOrText::AppendNode(child.clone().as_handle());
                     self.append(new_parent.clone(), child);
                 }
 
@@ -209,7 +224,7 @@ impl TreeSink for Dom {
         }
     }
 
-    fn mark_script_already_started(&mut self, node: Handle) {}
+    fn mark_script_already_started(&mut self, _: Handle) {}
 }
 
 #[cfg(test)]

@@ -1,7 +1,6 @@
 
 use std::io::{self, Write};
 
-use html5ever;
 use html5ever::tendril::StrTendril;
 use html5ever::serialize::{Serializable, Serializer, TraversalScope};
 

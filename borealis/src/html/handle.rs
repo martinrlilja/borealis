@@ -154,6 +154,14 @@ impl TreeHandle<Node> {
     }
 }
 
+impl<T: Serializable> Serializable for TreeHandle<T> {
+    fn serialize<'wr, Wr: Write>(&self, serializer: &mut Serializer<'wr, Wr>,
+                                 traversal_scope: TraversalScope) -> io::Result<()>
+    {
+        self.borrow().node.serialize(serializer, traversal_scope)
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct WeakTreeHandle<T>(
     Weak<RefCell<TreeNode<T>>>,
@@ -166,10 +174,14 @@ impl<T: Debug> WeakTreeHandle<T> {
     }
 }
 
-impl<T: Serializable> Serializable for TreeHandle<T> {
-    fn serialize<'wr, Wr: Write>(&self, serializer: &mut Serializer<'wr, Wr>,
-                                 traversal_scope: TraversalScope) -> io::Result<()>
-    {
-        self.borrow().node.serialize(serializer, traversal_scope)
+impl WeakTreeHandle<Document> {
+    pub fn as_handle(&self) -> ParentHandle {
+        ParentHandle::DocumentHandle(self.clone())
+    }
+}
+
+impl WeakTreeHandle<Node> {
+    pub fn as_handle(&self) -> ParentHandle {
+        ParentHandle::NodeHandle(self.clone())
     }
 }
