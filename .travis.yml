@@ -1,0 +1,9 @@
+language: rust
+rust:
+    - nightly
+os:
+    - linux
+    - osx
+script:
+    - (cd borealis && cargo build --verbose)
+    - (cd borealis && cargo test --verbose)
