@@ -52,20 +52,21 @@ impl Node {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Attribute {
-    name:  QualName,
+    name: QualName,
     value: StrTendril,
 }
 
 impl Attribute {
     pub fn new(name: QualName, value: StrTendril) -> Attribute {
         Attribute {
-            name:  name,
+            name: name,
             value: value,
         }
     }
 
     pub fn new_string(name: String, value: String) -> Attribute {
-        Attribute::new(QualName::new(ns!(html), Atom::from(name)), StrTendril::from(value))
+        Attribute::new(QualName::new(ns!(html), Atom::from(name)),
+                       StrTendril::from(value))
     }
 
     pub fn new_str(name: &str, value: &str) -> Attribute {
@@ -84,8 +85,17 @@ impl Attribute {
 impl From<html5ever::Attribute> for Attribute {
     fn from(attr: html5ever::Attribute) -> Attribute {
         Attribute {
-            name:  attr.name,
+            name: attr.name,
             value: attr.value,
+        }
+    }
+}
+
+impl Into<html5ever::Attribute> for Attribute {
+    fn into(self) -> html5ever::Attribute {
+        html5ever::Attribute {
+            name: self.name,
+            value: self.value,
         }
     }
 }
@@ -97,6 +107,18 @@ impl TextNode {
     pub fn new(text: StrTendril) -> TextNode {
         TextNode(text)
     }
+
+    pub fn new_string(text: String) -> TextNode {
+        TextNode::new(StrTendril::from(text))
+    }
+
+    pub fn new_str(text: &str) -> TextNode {
+        TextNode::new_string(text.to_owned())
+    }
+
+    pub fn text(&self) -> &StrTendril {
+        &self.0
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -105,6 +127,10 @@ pub struct CommentNode(StrTendril);
 impl CommentNode {
     pub fn new(comment: StrTendril) -> CommentNode {
         CommentNode(comment)
+    }
+
+    pub fn text(&self) -> &StrTendril {
+        &self.0
     }
 }
 
@@ -126,17 +152,20 @@ impl ElementType {
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct ElementNode {
-    name:         QualName,
+    name: QualName,
     element_type: ElementType,
-    attributes:   Vec<Attribute>,
+    attributes: Vec<Attribute>,
 }
 
 impl ElementNode {
-    pub fn new(name: QualName, element_type: ElementType, attributes: Vec<Attribute>) -> ElementNode {
+    pub fn new(name: QualName,
+               element_type: ElementType,
+               attributes: Vec<Attribute>)
+               -> ElementNode {
         ElementNode {
-            name:         name,
+            name: name,
             element_type: element_type,
-            attributes:   attributes,
+            attributes: attributes,
         }
     }
 
@@ -172,6 +201,10 @@ impl ElementNode {
         &self.element_type
     }
 
+    pub fn element_type_mut(&mut self) -> &mut ElementType {
+        &mut self.element_type
+    }
+
     pub fn attributes(&self) -> &[Attribute] {
         &self.attributes
     }
@@ -182,31 +215,29 @@ impl ElementNode {
 }
 
 impl Serializable for Node {
-    fn serialize<'wr, Wr: Write>(&self, serializer: &mut Serializer<'wr, Wr>,
-                                 traversal_scope: TraversalScope) -> io::Result<()>
-    {
+    fn serialize<'wr, Wr: Write>(&self,
+                                 serializer: &mut Serializer<'wr, Wr>,
+                                 traversal_scope: TraversalScope)
+                                 -> io::Result<()> {
         match (traversal_scope, self) {
-            (_, &Node::Element(ref node)) => {
-                node.clone().serialize(serializer, traversal_scope)
-            },
+            (_, &Node::Element(ref node)) => node.clone().serialize(serializer, traversal_scope),
             (TraversalScope::ChildrenOnly, _) => Ok(()),
-            (TraversalScope::IncludeNode, &Node::Text(ref node)) => {
-                serializer.write_text(&node.0)
-            },
+            (TraversalScope::IncludeNode, &Node::Text(ref node)) => serializer.write_text(&node.0),
             (TraversalScope::IncludeNode, &Node::Comment(ref node)) => {
                 serializer.write_comment(&node.0)
-            },
+            }
         }
     }
 }
 
 impl Serializable for ElementNode {
-    fn serialize<'wr, Wr: Write>(&self, serializer: &mut Serializer<'wr, Wr>,
-                                 traversal_scope: TraversalScope) -> io::Result<()>
-    {
+    fn serialize<'wr, Wr: Write>(&self,
+                                 serializer: &mut Serializer<'wr, Wr>,
+                                 traversal_scope: TraversalScope)
+                                 -> io::Result<()> {
         if traversal_scope == TraversalScope::IncludeNode {
             try!(serializer.start_elem(self.name.clone(),
-                self.attributes.iter().map(|a| (&a.name, &a.value[..]))));
+                                       self.attributes.iter().map(|a| (&a.name, &a.value[..]))));
         }
 
         match self.element_type {
@@ -214,10 +245,10 @@ impl Serializable for ElementNode {
                 for child in children.iter() {
                     try!(child.clone().serialize(serializer, TraversalScope::IncludeNode));
                 }
-            },
+            }
             ElementType::Template(ref document) => {
                 try!(document.clone().serialize(serializer, traversal_scope));
-            },
+            }
         }
 
         if traversal_scope == TraversalScope::IncludeNode {

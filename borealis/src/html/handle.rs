@@ -40,22 +40,14 @@ impl Handle {
             panic!("Expected node, got {:?}.", self);
         }
     }
-
-    /*pub fn set_parent(&self, parent: ParentHandle) {
-        match self {
-            Handle::DoctypeHandle(_)           => (),
-            Handle::DocumentHandle(ref handle) => handle.set_parent(parent),
-            Handle::NodeHandle(ref handle)     => handle.set_parent(parent),
-        }
-    }*/
 }
 
 impl Into<ParentHandle> for Handle {
     fn into(self) -> ParentHandle {
         match self {
-            Handle::DoctypeHandle(_)           => panic!("Doctype cannot be a parent."),
+            Handle::DoctypeHandle(_) => panic!("Doctype cannot be a parent."),
             Handle::DocumentHandle(ref handle) => ParentHandle::DocumentHandle(handle.downgrade()),
-            Handle::NodeHandle(ref handle)     => ParentHandle::NodeHandle(handle.downgrade()),
+            Handle::NodeHandle(ref handle) => ParentHandle::NodeHandle(handle.downgrade()),
         }
     }
 }
@@ -67,6 +59,14 @@ pub enum ParentHandle {
 }
 
 impl ParentHandle {
+    pub fn expect_document(&self) -> TreeHandle<Document> {
+        if let &ParentHandle::DocumentHandle(ref handle) = self {
+            handle.upgrade()
+        } else {
+            panic!("Expected document, got {:?}.", self);
+        }
+    }
+
     pub fn expect_node(&self) -> TreeHandle<Node> {
         if let &ParentHandle::NodeHandle(ref handle) = self {
             handle.upgrade()
@@ -78,7 +78,7 @@ impl ParentHandle {
 
 #[derive(Clone, Debug)]
 pub struct TreeNode<T> {
-    node:   T,
+    node: T,
     parent: Option<ParentHandle>,
 }
 
@@ -92,7 +92,7 @@ impl<T> TreeNode<T> {
     }
 
     pub fn unset_parent(&mut self) {
-        self.parent = None; 
+        self.parent = None;
     }
 }
 
@@ -117,14 +117,12 @@ impl<T> DerefMut for TreeNode<T> {
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct TreeHandle<T>(
-    Rc<RefCell<TreeNode<T>>>,
-);
+pub struct TreeHandle<T>(Rc<RefCell<TreeNode<T>>>);
 
 impl<T> TreeHandle<T> {
     pub fn new(node: T) -> TreeHandle<T> {
         TreeHandle(Rc::new(RefCell::new(TreeNode {
-            node:   node,
+            node: node,
             parent: None,
         })))
     }
@@ -155,22 +153,24 @@ impl TreeHandle<Node> {
 }
 
 impl<T: Serializable> Serializable for TreeHandle<T> {
-    fn serialize<'wr, Wr: Write>(&self, serializer: &mut Serializer<'wr, Wr>,
-                                 traversal_scope: TraversalScope) -> io::Result<()>
-    {
+    fn serialize<'wr, Wr: Write>(&self,
+                                 serializer: &mut Serializer<'wr, Wr>,
+                                 traversal_scope: TraversalScope)
+                                 -> io::Result<()> {
         self.borrow().node.serialize(serializer, traversal_scope)
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct WeakTreeHandle<T>(
-    Weak<RefCell<TreeNode<T>>>,
-);
+pub struct WeakTreeHandle<T>(Weak<RefCell<TreeNode<T>>>);
 
 impl<T: Debug> WeakTreeHandle<T> {
     pub fn upgrade(&self) -> TreeHandle<T> {
-        self.0.upgrade().map(TreeHandle)
-            .expect(&format!("WeakTreeHandle::upgrade(self: {:?}), self leads nowhere. :(", self))
+        self.0
+            .upgrade()
+            .map(TreeHandle)
+            .expect(&format!("WeakTreeHandle::upgrade(self: {:?}), self leads nowhere. :(",
+                             self))
     }
 }
 

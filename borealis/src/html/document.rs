@@ -8,14 +8,14 @@ use super::{Doctype, Node, TreeHandle};
 #[derive(Clone, Debug, PartialEq)]
 pub struct Document {
     doctype: Option<Doctype>,
-    child:   Option<TreeHandle<Node>>,
+    child: Option<TreeHandle<Node>>,
 }
 
 impl Document {
     pub fn new(doctype: Option<Doctype>, child: Option<TreeHandle<Node>>) -> Document {
         Document {
             doctype: doctype,
-            child:   child,
+            child: child,
         }
     }
 
@@ -41,11 +41,12 @@ impl Document {
 }
 
 impl Serializable for Document {
-    fn serialize<'wr, Wr: Write>(&self, serializer: &mut Serializer<'wr, Wr>,
-                                 traversal_scope: TraversalScope) -> io::Result<()>
-    {
+    fn serialize<'wr, Wr: Write>(&self,
+                                 serializer: &mut Serializer<'wr, Wr>,
+                                 traversal_scope: TraversalScope)
+                                 -> io::Result<()> {
         match traversal_scope {
-            TraversalScope::IncludeNode  => panic!("Cannot serialize the Document node itself."),
+            TraversalScope::IncludeNode => panic!("Cannot serialize the Document node itself."),
             TraversalScope::ChildrenOnly => {
                 if let Some(ref doctype) = self.doctype {
                     try!(doctype.clone().serialize(serializer, TraversalScope::IncludeNode));
@@ -56,7 +57,7 @@ impl Serializable for Document {
                 }
 
                 Ok(())
-            },
+            }
         }
     }
 }
