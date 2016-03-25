@@ -261,6 +261,7 @@ impl TreeSink for Dom {
 #[cfg(test)]
 mod tests {
     use super::Dom;
+    use test::Bencher;
 
     use html5ever::driver::{parse_document, parse_fragment, Parser, ParseOpts};
     use html5ever::tree_builder::{TreeSink, QuirksMode, NodeOrText};
@@ -284,29 +285,12 @@ mod tests {
             </body>
          </html>";
 
-    #[rustfmt_skip]
-    const FRAGMENT: &'static str =
-        "<p>
-             Fragment
-             <img src=\"test.flif\" alt=\"test\">
-         </p>";
-
-    #[test]
-    fn test_parse_document() {
-        let parser = parse_document(Dom::default(), ParseOpts::default()).from_utf8();
-
-        let output = parser.one(DOCUMENT.as_bytes());
-    }
-
-    #[test]
-    fn test_parse_fragment() {
-        let parser = parse_fragment(Dom::default(),
-                                    ParseOpts::default(),
-                                    qualname!(html, "div"),
-                                    Vec::new())
-                         .from_utf8();
-
-        let output = parser.one(FRAGMENT.as_bytes());
+    #[bench]
+    fn bench_parse_document(b: &mut Bencher) {
+        b.iter(|| {
+            let parser = parse_document(Dom::default(), ParseOpts::default()).from_utf8();
+            let output = parser.one(DOCUMENT.as_bytes());
+        });
     }
 
     #[test]
@@ -378,6 +362,15 @@ mod tests {
         do_test_create_element(&mut dom, qualname!(html, "html"));
     }
 
+    #[bench]
+    fn bench_create_element(b: &mut Bencher) {
+        let mut dom = Dom::new();
+
+        b.iter(|| {
+            dom.create_element(qualname!(html, "html"), Vec::new());
+        });
+    }
+
     #[test]
     fn test_create_comment() {
         let mut dom = Dom::new();
@@ -388,6 +381,16 @@ mod tests {
         let comment = comment.expect_comment();
 
         assert_eq!(text, *comment.text());
+    }
+
+    #[bench]
+    fn bench_create_comment(b: &mut Bencher) {
+        let mut dom = Dom::new();
+        let text = StrTendril::from("sup".to_owned());
+
+        b.iter(|| {
+            dom.create_comment(text.clone());
+        });
     }
 
     #[test]
