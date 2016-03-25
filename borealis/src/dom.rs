@@ -49,7 +49,7 @@ impl Dom {
                 let mut node = node.borrow_mut();
                 let mut children = node.expect_element_mut().expect_normal_mut();
                 let index = children.iter()
-                                    .position(|e| e.clone().as_handle() == *child)
+                                    .position(|e| Handle::from(e.clone()) == *child)
                                     .expect(&format!("Dom::remove_child_from_parent(parent: \
                                                       {:?}, child: {:?}), child is child of \
                                                       parent.",
@@ -90,7 +90,7 @@ impl TreeSink for Dom {
               .expect_element()
               .expect_template()
               .clone()
-              .as_handle()
+              .into()
     }
 
     fn set_quirks_mode(&mut self, quirks_mode: QuirksMode) {
@@ -118,9 +118,7 @@ impl TreeSink for Dom {
         Handle::new_node(Node::Element(ElementNode::new(name,
                                                         element_type,
                                                         attributes.iter()
-                                                                  .map(|a| {
-                                                                      Attribute::from(a.clone())
-                                                                  })
+                                                                  .map(|a| a.clone().into())
                                                                   .collect())))
     }
 
@@ -149,8 +147,8 @@ impl TreeSink for Dom {
                         children.push(child.clone());
                     }
                     ElementType::Template(ref document) => {
-                        self.append(document.as_handle(),
-                                    NodeOrText::AppendNode(child.as_handle()));
+                        self.append(document.clone().into(),
+                                    NodeOrText::AppendNode(child.clone().into()));
                     }
                 }
             }
@@ -168,7 +166,7 @@ impl TreeSink for Dom {
         let mut children = parent.borrow_mut();
         let mut children = children.expect_element_mut().expect_normal_mut();
         let index = children.iter()
-                            .position(|e| e.clone().as_handle() == sibling)
+                            .position(|e| Handle::from(e.clone()) == sibling)
                             .expect(&format!("Dom::append_before_sibling(sibling: {:?}, child: \
                                               {:?}), before is not child of self.",
                                              sibling,
@@ -197,7 +195,7 @@ impl TreeSink for Dom {
 
         let names = attributes.iter().map(|a| a.name().clone()).collect::<HashSet<_>>();
         let missing = attrs.into_iter().filter(|a| !names.contains(&a.name));
-        attributes.extend(missing.map(|a| Attribute::from(a.clone())));
+        attributes.extend(missing.map(|a| a.clone().into()));
     }
 
     fn remove_from_parent(&mut self, target: Handle) {
@@ -237,7 +235,7 @@ impl TreeSink for Dom {
             Handle::DoctypeHandle(_) => (),
             Handle::DocumentHandle(ref parent) => {
                 if let Some(child) = parent.borrow().child() {
-                    let child = NodeOrText::AppendNode(child.clone().as_handle());
+                    let child = NodeOrText::AppendNode(child.clone().into());
                     self.append(new_parent, child);
                 }
 
@@ -248,7 +246,7 @@ impl TreeSink for Dom {
                 let mut children = parent.expect_element_mut().expect_normal_mut();
 
                 for child in children.iter() {
-                    let child = NodeOrText::AppendNode(child.clone().as_handle());
+                    let child = NodeOrText::AppendNode(child.clone().into());
                     self.append(new_parent.clone(), child);
                 }
 
@@ -402,31 +400,34 @@ mod tests {
         {
             dom.append(document.clone(), NodeOrText::AppendNode(html.clone()));
 
-            let parent = html.expect_node()
-                             .borrow()
-                             .parent()
-                             .unwrap()
-                             .expect_document()
-                             .as_handle();
+            let parent: Handle = html.expect_node()
+                                     .borrow()
+                                     .parent()
+                                     .unwrap()
+                                     .expect_document()
+                                     .clone()
+                                     .into();
             assert_eq!(parent, document);
 
-            let child = document.expect_document()
-                                .borrow()
-                                .child()
-                                .unwrap()
-                                .as_handle();
+            let child: Handle = document.expect_document()
+                                        .borrow()
+                                        .child()
+                                        .unwrap()
+                                        .clone()
+                                        .into();
             assert_eq!(child, html);
         }
 
         {
             dom.append(html.clone(), NodeOrText::AppendNode(body.clone()));
 
-            let parent = body.expect_node()
-                             .borrow()
-                             .parent()
-                             .unwrap()
-                             .expect_node()
-                             .as_handle();
+            let parent: Handle = body.expect_node()
+                                     .borrow()
+                                     .parent()
+                                     .unwrap()
+                                     .expect_node()
+                                     .clone()
+                                     .into();
             assert_eq!(parent, html);
 
             assert!(html.expect_node()
@@ -434,7 +435,7 @@ mod tests {
                         .expect_element()
                         .expect_normal()
                         .iter()
-                        .any(|c| c.as_handle() == body));
+                        .any(|c| Handle::from(c.clone()) == body));
         }
     }
 

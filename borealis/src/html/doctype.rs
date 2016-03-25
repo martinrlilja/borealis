@@ -21,9 +21,7 @@ impl Doctype {
     }
 
     pub fn new_string(name: String, public_id: String, system_id: String) -> Doctype {
-        Doctype::new(StrTendril::from(name),
-                     StrTendril::from(public_id),
-                     StrTendril::from(system_id))
+        Doctype::new(name.into(), public_id.into(), system_id.into())
     }
 
     pub fn new_str(name: &str, public_id: &str, system_id: &str) -> Doctype {

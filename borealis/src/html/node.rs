@@ -65,8 +65,7 @@ impl Attribute {
     }
 
     pub fn new_string(name: String, value: String) -> Attribute {
-        Attribute::new(QualName::new(ns!(html), Atom::from(name)),
-                       StrTendril::from(value))
+        Attribute::new(QualName::new(ns!(html), name.into()), value.into())
     }
 
     pub fn new_str(name: &str, value: &str) -> Attribute {
@@ -109,7 +108,7 @@ impl TextNode {
     }
 
     pub fn new_string(text: String) -> TextNode {
-        TextNode::new(StrTendril::from(text))
+        TextNode::new(text.into())
     }
 
     pub fn new_str(text: &str) -> TextNode {

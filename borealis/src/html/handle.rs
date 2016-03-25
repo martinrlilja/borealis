@@ -42,6 +42,18 @@ impl Handle {
     }
 }
 
+impl From<TreeHandle<Document>> for Handle {
+    fn from(handle: TreeHandle<Document>) -> Handle {
+        Handle::DocumentHandle(handle)
+    }
+}
+
+impl From<TreeHandle<Node>> for Handle {
+    fn from(handle: TreeHandle<Node>) -> Handle {
+        Handle::NodeHandle(handle)
+    }
+}
+
 impl Into<ParentHandle> for Handle {
     fn into(self) -> ParentHandle {
         match self {
@@ -140,17 +152,17 @@ impl<T> TreeHandle<T> {
     }
 }
 
-impl TreeHandle<Document> {
-    pub fn as_handle(&self) -> Handle {
-        Handle::DocumentHandle(self.clone())
-    }
-}
-
-impl TreeHandle<Node> {
-    pub fn as_handle(&self) -> Handle {
-        Handle::NodeHandle(self.clone())
-    }
-}
+// impl Into<Handle> for TreeHandle<Document> {
+// fn into(self) -> Handle {
+// Handle::DocumentHandle(self.clone())
+// }
+// }
+//
+// impl Into<Handle> for TreeHandle<Node> {
+// fn into(self) -> Handle {
+// Handle::NodeHandle(self.clone())
+// }
+// }
 
 impl<T: Serializable> Serializable for TreeHandle<T> {
     fn serialize<'wr, Wr: Write>(&self,
