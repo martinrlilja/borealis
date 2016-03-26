@@ -1,9 +1,13 @@
 
 use std::io::{self, Write};
 
+use html5ever::driver::{parse_document, ParseOpts};
+use html5ever::tree_builder::TreeSink;
+use html5ever::tendril::TendrilSink;
 use html5ever::serialize::{Serializable, Serializer, TraversalScope};
 
 use super::{Doctype, Node};
+use dom;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Document {
@@ -30,16 +34,22 @@ impl Document {
         }
     }
 
-    pub fn set_doctype(&mut self, doctype: Doctype) {
-        self.doctype = Some(doctype);
-    }
+    pub fn parse_str(string: &str) -> Document {
+        let parser = parse_document(dom::Dom::new(), ParseOpts::default()).from_utf8();
+        let dom = parser.one(string.as_bytes());
 
-    pub fn set_child(&mut self, node: Node) {
-        self.child = Some(Box::new(node));
+        dom.document().into()
     }
+}
 
-    pub fn unset_child(&mut self) {
-        self.child = None;
+impl<'a> From<&'a dom::Handle> for Document {
+    fn from(handle: &'a dom::Handle) -> Document {
+        match *handle.borrow() {
+            (dom::Node::Document(ref doctype, ref child), _) => {
+                Document::new(doctype.clone(), child.as_ref().map(Node::from))
+            }
+            _ => panic!("expected document, got: {:?}", handle),
+        }
     }
 }
 
@@ -62,5 +72,31 @@ impl Serializable for Document {
                 Ok(())
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use test::Bencher;
+
+    #[rustfmt_skip]
+    const DOCUMENT: &'static str =
+        "<!DOCTYPE html>
+         <html lang=\"en\">
+            <head>
+                <title>Test</title>
+            </head>
+            <body>
+                Document
+                <img src=\"test.flif\" alt=\"test\">
+            </body>
+         </html>";
+
+    #[bench]
+    fn bench_parse_document(b: &mut Bencher) {
+        b.iter(|| {
+            Document::parse_str(DOCUMENT);
+        });
     }
 }

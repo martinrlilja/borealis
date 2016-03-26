@@ -8,12 +8,13 @@ use html5ever::serialize::{Serializable, Serializer, TraversalScope};
 use string_cache::QualName;
 
 use super::Document;
+use dom;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Node {
-    Text(TextNode),
     Comment(CommentNode),
     Element(ElementNode),
+    Text(TextNode),
 }
 
 impl Node {
@@ -46,6 +47,29 @@ impl Node {
             node
         } else {
             panic!("Expected element node, got: {:?}", self);
+        }
+    }
+}
+
+impl<'a> From<&'a dom::Handle> for Node {
+    fn from(handle: &'a dom::Handle) -> Node {
+        match *handle.borrow() {
+            (dom::Node::Comment(ref text), _) => CommentNode::new(text.clone()).into(),
+            (dom::Node::Element(ref name, ref attributes, ref children),
+             _) => {
+                let mut children = children.iter().map(|c| c.into());
+                let element_type = match *name {
+                    qualname!(html, "template") => {
+                        let document = Document::new(None, children.next());
+                        ElementType::Template(document)
+                    }
+                    _ => ElementType::Normal(children.collect()),
+                };
+
+                ElementNode::new(name.clone(), attributes.clone(), element_type).into()
+            }
+            (dom::Node::Text(ref text), _) => TextNode::new(text.clone()).into(),
+            _ => panic!("expected comment, element or text, got: {:?}", handle),
         }
     }
 }
@@ -176,8 +200,8 @@ pub struct ElementNode {
 
 impl ElementNode {
     pub fn new(name: QualName,
-               element_type: ElementType,
-               attributes: Vec<Attribute>)
+               attributes: Vec<Attribute>,
+               element_type: ElementType)
                -> ElementNode {
         ElementNode {
             name: name,

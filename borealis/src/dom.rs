@@ -83,17 +83,15 @@ impl Dom {
         }
     }
 
+    pub fn document(&self) -> &Handle {
+        &self.document
+    }
+
     fn node_or_text_as_handle(child: &NodeOrText<Handle>) -> Handle {
         match child {
             &NodeOrText::AppendText(ref text) => Node::Text(text.clone()).into(),
             &NodeOrText::AppendNode(ref node) => node.clone(),
         }
-    }
-}
-
-impl Default for Dom {
-    fn default() -> Dom {
-        Dom::new()
     }
 }
 
@@ -269,34 +267,12 @@ mod tests {
     use super::*;
     use test::Bencher;
 
-    use html5ever::driver::{parse_document, ParseOpts};
     use html5ever::tree_builder::{TreeSink, NodeOrText};
-    use html5ever::tendril::{StrTendril, TendrilSink};
+    use html5ever::tendril::StrTendril;
 
     use string_cache::QualName;
 
     use html::Attribute;
-
-    #[rustfmt_skip]
-    const DOCUMENT: &'static str =
-        "<!DOCTYPE html>
-         <html lang=\"en\">
-            <head>
-                <title>Test</title>
-            </head>
-            <body>
-                Document
-                <img src=\"test.flif\" alt=\"test\">
-            </body>
-         </html>";
-
-    #[bench]
-    fn bench_parse_document(b: &mut Bencher) {
-        b.iter(|| {
-            let parser = parse_document(Dom::default(), ParseOpts::default()).from_utf8();
-            parser.one(DOCUMENT.as_bytes());
-        });
-    }
 
     #[test]
     fn test_get_template_contents() {
