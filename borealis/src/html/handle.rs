@@ -152,18 +152,6 @@ impl<T> TreeHandle<T> {
     }
 }
 
-// impl Into<Handle> for TreeHandle<Document> {
-// fn into(self) -> Handle {
-// Handle::DocumentHandle(self.clone())
-// }
-// }
-//
-// impl Into<Handle> for TreeHandle<Node> {
-// fn into(self) -> Handle {
-// Handle::NodeHandle(self.clone())
-// }
-// }
-
 impl<T: Serializable> Serializable for TreeHandle<T> {
     fn serialize<'wr, Wr: Write>(&self,
                                  serializer: &mut Serializer<'wr, Wr>,
