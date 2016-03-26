@@ -5,7 +5,7 @@ use html5ever;
 use html5ever::tendril::StrTendril;
 use html5ever::serialize::{Serializable, Serializer, TraversalScope};
 
-use string_cache::{Atom, QualName};
+use string_cache::QualName;
 
 use super::{Document, TreeHandle};
 
@@ -47,6 +47,24 @@ impl Node {
         } else {
             panic!("Expected element node, got: {:?}", self);
         }
+    }
+}
+
+impl From<TextNode> for Node {
+    fn from(node: TextNode) -> Node {
+        Node::Text(node)
+    }
+}
+
+impl From<CommentNode> for Node {
+    fn from(node: CommentNode) -> Node {
+        Node::Comment(node)
+    }
+}
+
+impl From<ElementNode> for Node {
+    fn from(node: ElementNode) -> Node {
+        Node::Element(node)
     }
 }
 

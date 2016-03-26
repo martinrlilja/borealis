@@ -1,16 +1,16 @@
 
-use super::html::{Html, Node};
+use super::html::{Document, Node, TextNode};
 
-pub trait ToHtmlDocument {
-    fn to_html_document(&self) -> Dom;
+pub trait DocumentTemplate {
+    fn document_template(self) -> Document;
 }
 
-pub trait ToHtmlFragment {
-    fn to_html_fragment(&self) -> Node;
+pub trait FragmentTemplate {
+    fn fragment_template(self) -> Node;
 }
 
-impl ToHtml for String {
-    fn to_html_fragment(&self) -> Node {
-        Html::Node(Node::new_text(&self))
+impl FragmentTemplate for String {
+    fn fragment_template(self) -> Node {
+        TextNode::new_string(self).into()
     }
 }

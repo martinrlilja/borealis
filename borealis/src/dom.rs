@@ -8,8 +8,8 @@ use html5ever::tendril::StrTendril;
 
 use string_cache::QualName;
 
-use html::{Attribute, CommentNode, Doctype, Document, ElementNode, ElementType, Handle, Node,
-           ParentHandle, TextNode};
+use html::{CommentNode, Doctype, Document, ElementNode, ElementType, Handle, Node, ParentHandle,
+           TextNode};
 
 #[derive(Debug)]
 pub struct Dom {
@@ -263,14 +263,13 @@ mod tests {
     use super::Dom;
     use test::Bencher;
 
-    use html5ever::driver::{parse_document, parse_fragment, Parser, ParseOpts};
-    use html5ever::tree_builder::{TreeSink, QuirksMode, NodeOrText};
+    use html5ever::driver::{parse_document, ParseOpts};
+    use html5ever::tree_builder::{TreeSink, NodeOrText};
     use html5ever::tendril::{StrTendril, TendrilSink};
 
     use string_cache::QualName;
 
-    use html::{Attribute, CommentNode, Doctype, Document, ElementNode, ElementType, Handle, Node,
-               ParentHandle, TextNode};
+    use html::{Attribute, Document, Handle};
 
     #[rustfmt_skip]
     const DOCUMENT: &'static str =
@@ -289,7 +288,7 @@ mod tests {
     fn bench_parse_document(b: &mut Bencher) {
         b.iter(|| {
             let parser = parse_document(Dom::default(), ParseOpts::default()).from_utf8();
-            let output = parser.one(DOCUMENT.as_bytes());
+            parser.one(DOCUMENT.as_bytes());
         });
     }
 
