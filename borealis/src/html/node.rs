@@ -7,7 +7,7 @@ use html5ever::serialize::{Serializable, Serializer, TraversalScope};
 
 use string_cache::QualName;
 
-use super::{Document, TreeHandle};
+use super::Document;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Node {
@@ -153,8 +153,8 @@ impl CommentNode {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ElementType {
-    Normal(Vec<TreeHandle<Node>>),
-    Template(TreeHandle<Document>),
+    Normal(Vec<Node>),
+    Template(Document),
 }
 
 impl ElementType {
@@ -163,7 +163,7 @@ impl ElementType {
     }
 
     pub fn new_template() -> ElementType {
-        ElementType::Template(TreeHandle::new(Document::new(None, None)))
+        ElementType::Template(Document::new(None, None))
     }
 }
 
@@ -186,7 +186,7 @@ impl ElementNode {
         }
     }
 
-    pub fn expect_normal(&self) -> &[TreeHandle<Node>] {
+    pub fn expect_normal(&self) -> &[Node] {
         if let ElementType::Normal(ref children) = self.element_type {
             children
         } else {
@@ -194,7 +194,7 @@ impl ElementNode {
         }
     }
 
-    pub fn expect_normal_mut(&mut self) -> &mut Vec<TreeHandle<Node>> {
+    pub fn expect_normal_mut(&mut self) -> &mut Vec<Node> {
         if let ElementType::Normal(ref mut children) = self.element_type {
             children
         } else {
@@ -202,7 +202,7 @@ impl ElementNode {
         }
     }
 
-    pub fn expect_template(&self) -> &TreeHandle<Document> {
+    pub fn expect_template(&self) -> &Document {
         if let ElementType::Template(ref document) = self.element_type {
             document
         } else {

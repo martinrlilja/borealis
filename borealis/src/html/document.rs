@@ -3,19 +3,19 @@ use std::io::{self, Write};
 
 use html5ever::serialize::{Serializable, Serializer, TraversalScope};
 
-use super::{Doctype, Node, TreeHandle};
+use super::{Doctype, Node};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Document {
     doctype: Option<Doctype>,
-    child: Option<TreeHandle<Node>>,
+    child: Option<Box<Node>>,
 }
 
 impl Document {
-    pub fn new(doctype: Option<Doctype>, child: Option<TreeHandle<Node>>) -> Document {
+    pub fn new(doctype: Option<Doctype>, child: Option<Node>) -> Document {
         Document {
             doctype: doctype,
-            child: child,
+            child: child.map(Box::new),
         }
     }
 
@@ -23,16 +23,19 @@ impl Document {
         self.doctype.as_ref()
     }
 
-    pub fn child(&self) -> Option<&TreeHandle<Node>> {
-        self.child.as_ref()
+    pub fn child(&self) -> Option<&Node> {
+        match self.child {
+            Some(ref child) => Some(child.as_ref()),
+            None => None,
+        }
     }
 
     pub fn set_doctype(&mut self, doctype: Doctype) {
         self.doctype = Some(doctype);
     }
 
-    pub fn set_child(&mut self, node: TreeHandle<Node>) {
-        self.child = Some(node);
+    pub fn set_child(&mut self, node: Node) {
+        self.child = Some(Box::new(node));
     }
 
     pub fn unset_child(&mut self) {
