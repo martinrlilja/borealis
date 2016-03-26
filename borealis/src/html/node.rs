@@ -21,38 +21,6 @@ pub enum Node {
 }
 
 impl Node {
-    pub fn expect_text(&self) -> &TextNode {
-        if let &Node::Text(ref node) = self {
-            node
-        } else {
-            panic!("Expected text node, got: {:?}", self);
-        }
-    }
-
-    pub fn expect_comment(&self) -> &CommentNode {
-        if let &Node::Comment(ref node) = self {
-            node
-        } else {
-            panic!("Expected comment node, got: {:?}", self);
-        }
-    }
-
-    pub fn expect_element(&self) -> &ElementNode {
-        if let &Node::Element(ref node) = self {
-            node
-        } else {
-            panic!("Expected element node, got: {:?}", self);
-        }
-    }
-
-    pub fn expect_element_mut(&mut self) -> &mut ElementNode {
-        if let &mut Node::Element(ref mut node) = self {
-            node
-        } else {
-            panic!("Expected element node, got: {:?}", self);
-        }
-    }
-
     pub fn parse_str(string: &str) -> Node {
         let parser = parse_document(dom::Dom::new(), ParseOpts::default()).from_utf8();
         let dom = parser.one(string.as_bytes());
@@ -220,30 +188,6 @@ impl ElementNode {
         }
     }
 
-    pub fn expect_normal(&self) -> &[Node] {
-        if let ElementType::Normal(ref children) = self.element_type {
-            children
-        } else {
-            panic!("Expected normal element, got: {:?}", self);
-        }
-    }
-
-    pub fn expect_normal_mut(&mut self) -> &mut Vec<Node> {
-        if let ElementType::Normal(ref mut children) = self.element_type {
-            children
-        } else {
-            panic!("Expected normal element, got: {:?}", self);
-        }
-    }
-
-    pub fn expect_template(&self) -> &Document {
-        if let ElementType::Template(ref document) = self.element_type {
-            document
-        } else {
-            panic!("Expected template element, got: {:?}", self);
-        }
-    }
-
     pub fn name(&self) -> &QualName {
         &self.name
     }
@@ -252,16 +196,8 @@ impl ElementNode {
         &self.element_type
     }
 
-    pub fn element_type_mut(&mut self) -> &mut ElementType {
-        &mut self.element_type
-    }
-
     pub fn attributes(&self) -> &[Attribute] {
         &self.attributes
-    }
-
-    pub fn attributes_mut(&mut self) -> &mut Vec<Attribute> {
-        &mut self.attributes
     }
 }
 
