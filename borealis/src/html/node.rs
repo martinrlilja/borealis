@@ -2,6 +2,9 @@
 use std::io::{self, Write};
 
 use html5ever;
+use html5ever::driver::{parse_document, ParseOpts};
+use html5ever::tree_builder::TreeSink;
+use html5ever::tendril::TendrilSink;
 use html5ever::tendril::StrTendril;
 use html5ever::serialize::{Serializable, Serializer, TraversalScope};
 
@@ -48,6 +51,13 @@ impl Node {
         } else {
             panic!("Expected element node, got: {:?}", self);
         }
+    }
+
+    pub fn parse_str(string: &str) -> Node {
+        let parser = parse_document(dom::Dom::new(), ParseOpts::default()).from_utf8();
+        let dom = parser.one(string.as_bytes());
+
+        (&dom.fragment()).into()
     }
 }
 
@@ -107,7 +117,7 @@ impl Attribute {
     }
 
     pub fn new_string(name: String, value: String) -> Attribute {
-        Attribute::new(QualName::new(ns!(html), name.into()), value.into())
+        Attribute::new(QualName::new(ns!(), name.into()), value.into())
     }
 
     pub fn new_str(name: &str, value: &str) -> Attribute {
@@ -297,5 +307,24 @@ impl Serializable for ElementNode {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[rustfmt_skip]
+    const FRAGMENT: &'static str =
+        "<div id=\"test\">Hello!</div>";
+
+    #[test]
+    fn test_parse_str() {
+        let node = Node::parse_str(FRAGMENT);
+        assert_eq!(node,
+                   ElementNode::new(qualname!(html, "div"),
+                                    vec![Attribute::new_str("id", "test")],
+                                    ElementType::Normal(vec![TextNode::new_str("Hello!").into()]))
+                       .into());
     }
 }

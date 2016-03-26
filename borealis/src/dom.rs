@@ -1,6 +1,6 @@
 
 use std::borrow::Cow;
-use std::cell::RefCell;
+use std::cell::{Ref, RefCell};
 use std::collections::HashSet;
 use std::ops::Deref;
 use std::rc::{Rc, Weak};
@@ -85,6 +85,28 @@ impl Dom {
 
     pub fn document(&self) -> &Handle {
         &self.document
+    }
+
+    pub fn fragment(&self) -> Handle {
+        fn element_children<'a>(node: &'a Ref<(Node, Option<WeakHandle>)>) -> &'a [Handle] {
+            match **node {
+                (Node::Element(_, _, ref children), _) => &children,
+                _ => panic!("expected element, got: {:?}", node),
+            }
+        }
+
+        let html = match *self.document.borrow() {
+            (Node::Document(_, ref child), _) => child.clone().unwrap(),
+            _ => panic!("expected document, got: {:?}", self.document),
+        };
+
+        let mut children = Vec::new();
+        for child in element_children(&html.borrow()).iter() {
+            children.extend(element_children(&child.borrow()).iter().cloned());
+        }
+
+        assert_eq!(children.len(), 1);
+        children[0].clone()
     }
 
     fn node_or_text_as_handle(child: &NodeOrText<Handle>) -> Handle {
@@ -273,6 +295,30 @@ mod tests {
     use string_cache::QualName;
 
     use html::Attribute;
+
+    #[test]
+    fn test_fragment() {
+        let mut dom = Dom::new();
+        let document = dom.get_document();
+        let html = dom.create_element(qualname!(html, "html"), Vec::new());
+        let head = dom.create_element(qualname!(html, "head"), Vec::new());
+        let body = dom.create_element(qualname!(html, "body"), Vec::new());
+        let element = dom.create_element(qualname!(html, "div"), Vec::new());
+
+        dom.append(document, NodeOrText::AppendNode(html.clone()));
+        dom.append(html.clone(), NodeOrText::AppendNode(head.clone()));
+        dom.append(html.clone(), NodeOrText::AppendNode(body.clone()));
+
+        dom.append(head.clone(), NodeOrText::AppendNode(element.clone()));
+
+        let fragment = dom.fragment();
+        assert_eq!(fragment, element);
+
+        dom.reparent_children(head.clone(), body.clone());
+
+        let fragment = dom.fragment();
+        assert_eq!(fragment, element);
+    }
 
     #[test]
     fn test_get_template_contents() {
