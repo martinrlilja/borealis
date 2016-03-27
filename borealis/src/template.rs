@@ -14,3 +14,9 @@ impl FragmentTemplate for String {
         TextNode::new_string(self).into()
     }
 }
+
+impl<'a> FragmentTemplate for &'a str {
+    fn fragment_template(self) -> Node {
+        TextNode::new_str(self).into()
+    }
+}

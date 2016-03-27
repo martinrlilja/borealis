@@ -5,8 +5,8 @@ extern crate html5ever;
 #[macro_use(qualname, ns, atom)]
 extern crate string_cache;
 
-pub use tohtml::{DocumentTemplate, FragmentTemplate};
+pub use template::{DocumentTemplate, FragmentTemplate};
 
 mod dom;
 pub mod html;
-mod tohtml;
+mod template;
