@@ -2,50 +2,52 @@
 use std::io::{self, Write};
 
 use html5ever;
+use html5ever::driver::{parse_document, ParseOpts};
+use html5ever::tree_builder::TreeSink;
+use html5ever::tendril::TendrilSink;
 use html5ever::tendril::StrTendril;
 use html5ever::serialize::{Serializable, Serializer, TraversalScope};
 
 use string_cache::QualName;
 
-use super::{Document, TreeHandle};
+use super::Document;
+use dom;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Node {
-    Text(TextNode),
     Comment(CommentNode),
     Element(ElementNode),
+    Text(TextNode),
 }
 
 impl Node {
-    pub fn expect_text(&self) -> &TextNode {
-        if let &Node::Text(ref node) = self {
-            node
-        } else {
-            panic!("Expected text node, got: {:?}", self);
-        }
-    }
+    pub fn parse_str(string: &str) -> Node {
+        let parser = parse_document(dom::Dom::new(), ParseOpts::default()).from_utf8();
+        let dom = parser.one(string.as_bytes());
 
-    pub fn expect_comment(&self) -> &CommentNode {
-        if let &Node::Comment(ref node) = self {
-            node
-        } else {
-            panic!("Expected comment node, got: {:?}", self);
-        }
+        (&dom.fragment()).into()
     }
+}
 
-    pub fn expect_element(&self) -> &ElementNode {
-        if let &Node::Element(ref node) = self {
-            node
-        } else {
-            panic!("Expected element node, got: {:?}", self);
-        }
-    }
+impl<'a> From<&'a dom::Handle> for Node {
+    fn from(handle: &'a dom::Handle) -> Node {
+        match *handle.borrow() {
+            (dom::Node::Comment(ref text), _) => CommentNode::new(text.clone()).into(),
+            (dom::Node::Element(ref name, ref attributes, ref children),
+             _) => {
+                let mut children = children.iter().map(|c| c.into());
+                let element_type = match *name {
+                    qualname!(html, "template") => {
+                        let document = Document::new(None, children.next());
+                        ElementType::Template(document)
+                    }
+                    _ => ElementType::Normal(children.collect()),
+                };
 
-    pub fn expect_element_mut(&mut self) -> &mut ElementNode {
-        if let &mut Node::Element(ref mut node) = self {
-            node
-        } else {
-            panic!("Expected element node, got: {:?}", self);
+                ElementNode::new(name.clone(), attributes.clone(), element_type).into()
+            }
+            (dom::Node::Text(ref text), _) => TextNode::new(text.clone()).into(),
+            _ => panic!("expected comment, element or text, got: {:?}", handle),
         }
     }
 }
@@ -83,7 +85,7 @@ impl Attribute {
     }
 
     pub fn new_string(name: String, value: String) -> Attribute {
-        Attribute::new(QualName::new(ns!(html), name.into()), value.into())
+        Attribute::new(QualName::new(ns!(), name.into()), value.into())
     }
 
     pub fn new_str(name: &str, value: &str) -> Attribute {
@@ -153,8 +155,8 @@ impl CommentNode {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum ElementType {
-    Normal(Vec<TreeHandle<Node>>),
-    Template(TreeHandle<Document>),
+    Normal(Vec<Node>),
+    Template(Document),
 }
 
 impl ElementType {
@@ -163,7 +165,7 @@ impl ElementType {
     }
 
     pub fn new_template() -> ElementType {
-        ElementType::Template(TreeHandle::new(Document::new(None, None)))
+        ElementType::Template(Document::new(None, None))
     }
 }
 
@@ -176,37 +178,13 @@ pub struct ElementNode {
 
 impl ElementNode {
     pub fn new(name: QualName,
-               element_type: ElementType,
-               attributes: Vec<Attribute>)
+               attributes: Vec<Attribute>,
+               element_type: ElementType)
                -> ElementNode {
         ElementNode {
             name: name,
             element_type: element_type,
             attributes: attributes,
-        }
-    }
-
-    pub fn expect_normal(&self) -> &[TreeHandle<Node>] {
-        if let ElementType::Normal(ref children) = self.element_type {
-            children
-        } else {
-            panic!("Expected normal element, got: {:?}", self);
-        }
-    }
-
-    pub fn expect_normal_mut(&mut self) -> &mut Vec<TreeHandle<Node>> {
-        if let ElementType::Normal(ref mut children) = self.element_type {
-            children
-        } else {
-            panic!("Expected normal element, got: {:?}", self);
-        }
-    }
-
-    pub fn expect_template(&self) -> &TreeHandle<Document> {
-        if let ElementType::Template(ref document) = self.element_type {
-            document
-        } else {
-            panic!("Expected template element, got: {:?}", self);
         }
     }
 
@@ -218,16 +196,8 @@ impl ElementNode {
         &self.element_type
     }
 
-    pub fn element_type_mut(&mut self) -> &mut ElementType {
-        &mut self.element_type
-    }
-
     pub fn attributes(&self) -> &[Attribute] {
         &self.attributes
-    }
-
-    pub fn attributes_mut(&mut self) -> &mut Vec<Attribute> {
-        &mut self.attributes
     }
 }
 
@@ -273,5 +243,24 @@ impl Serializable for ElementNode {
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[rustfmt_skip]
+    const FRAGMENT: &'static str =
+        "<div id=\"test\">Hello!</div>";
+
+    #[test]
+    fn test_parse_str() {
+        let node = Node::parse_str(FRAGMENT);
+        assert_eq!(node,
+                   ElementNode::new(qualname!(html, "div"),
+                                    vec![Attribute::new_str("id", "test")],
+                                    ElementType::Normal(vec![TextNode::new_str("Hello!").into()]))
+                       .into());
     }
 }

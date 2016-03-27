@@ -1,6 +1,9 @@
 
 use std::borrow::Cow;
+use std::cell::{Ref, RefCell};
 use std::collections::HashSet;
+use std::ops::Deref;
+use std::rc::{Rc, Weak};
 
 use html5ever;
 use html5ever::tree_builder::{TreeSink, QuirksMode, NodeOrText};
@@ -8,8 +11,61 @@ use html5ever::tendril::StrTendril;
 
 use string_cache::QualName;
 
-use html::{CommentNode, Doctype, Document, ElementNode, ElementType, Handle, Node, ParentHandle,
-           TextNode};
+use html::{Doctype, Attribute};
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum Node {
+    Comment(StrTendril),
+    Document(Option<Doctype>, Option<Handle>),
+    Element(QualName, Vec<Attribute>, Vec<Handle>),
+    Text(StrTendril),
+}
+
+#[derive(Clone, Debug)]
+pub struct Handle(Rc<RefCell<(Node, Option<WeakHandle>)>>);
+
+impl Handle {
+    fn downgrade(&self) -> WeakHandle {
+        WeakHandle(Rc::downgrade(&self.0))
+    }
+}
+
+impl From<Node> for Handle {
+    fn from(node: Node) -> Handle {
+        Handle(Rc::new(RefCell::new((node, None))))
+    }
+}
+
+impl Deref for Handle {
+    type Target = Rc<RefCell<(Node, Option<WeakHandle>)>>;
+
+    fn deref(&self) -> &Rc<RefCell<(Node, Option<WeakHandle>)>> {
+        &self.0
+    }
+}
+
+impl PartialEq for Handle {
+    fn eq(&self, other: &Handle) -> bool {
+        self.borrow().0 == other.borrow().0
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct WeakHandle(Weak<RefCell<(Node, Option<WeakHandle>)>>);
+
+impl WeakHandle {
+    fn upgrade(&self) -> Handle {
+        Handle(self.0.upgrade().unwrap())
+    }
+}
+
+impl Deref for WeakHandle {
+    type Target = Weak<RefCell<(Node, Option<WeakHandle>)>>;
+
+    fn deref(&self) -> &Weak<RefCell<(Node, Option<WeakHandle>)>> {
+        &self.0
+    }
+}
 
 #[derive(Debug)]
 pub struct Dom {
@@ -21,50 +77,43 @@ pub struct Dom {
 impl Dom {
     pub fn new() -> Dom {
         Dom {
-            document: Handle::new_document(Document::new(None, None)),
+            document: Node::Document(None, None).into(),
             errors: Vec::new(),
             quirks_mode: QuirksMode::NoQuirks,
         }
     }
 
+    pub fn document(&self) -> &Handle {
+        &self.document
+    }
+
+    pub fn fragment(&self) -> Handle {
+        fn element_children<'a>(node: &'a Ref<(Node, Option<WeakHandle>)>) -> &'a [Handle] {
+            match **node {
+                (Node::Element(_, _, ref children), _) => &children,
+                _ => panic!("expected element, got: {:?}", node),
+            }
+        }
+
+        let html = match *self.document.borrow() {
+            (Node::Document(_, ref child), _) => child.clone().unwrap(),
+            _ => panic!("expected document, got: {:?}", self.document),
+        };
+
+        let mut children = Vec::new();
+        for child in element_children(&html.borrow()).iter() {
+            children.extend(element_children(&child.borrow()).iter().cloned());
+        }
+
+        assert_eq!(children.len(), 1);
+        children[0].clone()
+    }
+
     fn node_or_text_as_handle(child: &NodeOrText<Handle>) -> Handle {
         match child {
-            &NodeOrText::AppendText(ref text) => {
-                Handle::new_node(Node::Text(TextNode::new(text.clone())))
-            }
+            &NodeOrText::AppendText(ref text) => Node::Text(text.clone()).into(),
             &NodeOrText::AppendNode(ref node) => node.clone(),
         }
-    }
-
-    fn remove_child_from_parent(parent: &ParentHandle, child: &Handle) {
-        match *parent {
-            ParentHandle::DocumentHandle(ref document) => {
-                let document = document.upgrade();
-                assert_eq!(document.borrow().child(), Some(child.expect_node()));
-
-                document.borrow_mut().unset_child();
-            }
-            ParentHandle::NodeHandle(ref node) => {
-                let node = node.upgrade();
-                let mut node = node.borrow_mut();
-                let mut children = node.expect_element_mut().expect_normal_mut();
-                let index = children.iter()
-                                    .position(|e| Handle::from(e.clone()) == *child)
-                                    .expect(&format!("Dom::remove_child_from_parent(parent: \
-                                                      {:?}, child: {:?}), child is child of \
-                                                      parent.",
-                                                     parent,
-                                                     child));
-
-                children.remove(index);
-            }
-        }
-    }
-}
-
-impl Default for Dom {
-    fn default() -> Dom {
-        Dom::new()
     }
 }
 
@@ -85,12 +134,7 @@ impl TreeSink for Dom {
     }
 
     fn get_template_contents(&self, target: Handle) -> Handle {
-        target.expect_node()
-              .borrow()
-              .expect_element()
-              .expect_template()
-              .clone()
-              .into()
+        target
     }
 
     fn set_quirks_mode(&mut self, quirks_mode: QuirksMode) {
@@ -102,56 +146,41 @@ impl TreeSink for Dom {
     }
 
     fn elem_name(&self, target: Handle) -> QualName {
-        target.expect_node()
-              .borrow()
-              .expect_element()
-              .name()
-              .clone()
+        match *target.borrow() {
+            (Node::Element(ref name, _, _), _) => name.clone(),
+            _ => panic!("expected element, got: {:?}", target),
+        }
     }
 
     fn create_element(&mut self, name: QualName, attributes: Vec<html5ever::Attribute>) -> Handle {
-        let element_type = match name {
-            qualname!(html, "template") => ElementType::new_template(),
-            _ => ElementType::new_normal(),
-        };
+        let attributes = attributes.iter()
+                                   .map(|a| a.clone().into())
+                                   .collect();
 
-        Handle::new_node(Node::Element(ElementNode::new(name,
-                                                        element_type,
-                                                        attributes.iter()
-                                                                  .map(|a| a.clone().into())
-                                                                  .collect())))
+        Node::Element(name, attributes, Vec::new()).into()
     }
 
     fn create_comment(&mut self, text: StrTendril) -> Handle {
-        Handle::new_node(Node::Comment(CommentNode::new(text)))
+        Node::Comment(text).into()
     }
 
     fn append(&mut self, parent: Handle, child: NodeOrText<Handle>) {
-        let child = Dom::node_or_text_as_handle(&child);
-        let child = child.expect_node();
-        child.borrow_mut()
-             .set_parent(parent.clone().into());
+        match *parent.borrow_mut() {
+            (Node::Document(_, ref mut old_child), _) => {
+                assert!(old_child.is_none());
 
-        match parent {
-            Handle::DoctypeHandle(_) => panic!("Cannot append to doctype."),
-            Handle::DocumentHandle(ref document) => {
-                document.borrow_mut()
-                        .set_child(child.clone());
-            }
-            Handle::NodeHandle(ref node) => {
-                let mut node = node.borrow_mut();
-                let mut node = node.expect_element_mut();
+                let child = Dom::node_or_text_as_handle(&child);
+                child.borrow_mut().1 = Some(parent.downgrade());
 
-                match *node.element_type_mut() {
-                    ElementType::Normal(ref mut children) => {
-                        children.push(child.clone());
-                    }
-                    ElementType::Template(ref document) => {
-                        self.append(document.clone().into(),
-                                    NodeOrText::AppendNode(child.clone().into()));
-                    }
-                }
+                *old_child = Some(child);
             }
+            (Node::Element(_, _, ref mut children), _) => {
+                let child = Dom::node_or_text_as_handle(&child);
+                child.borrow_mut().1 = Some(parent.downgrade());
+
+                children.push(child);
+            }
+            _ => panic!("expected document or element, got: {:?}", parent),
         }
     }
 
@@ -159,22 +188,22 @@ impl TreeSink for Dom {
                              sibling: Handle,
                              child: NodeOrText<Handle>)
                              -> Result<(), NodeOrText<Handle>> {
-        let node = Dom::node_or_text_as_handle(&child);
+        let (_, ref parent) = *sibling.borrow();
+        let child = Dom::node_or_text_as_handle(&child);
+        child.borrow_mut().1 = parent.clone();
 
-        let parent = try!(sibling.expect_node().borrow().parent().ok_or(child)).expect_node();
-        let child = node.expect_node();
-        let mut children = parent.borrow_mut();
-        let mut children = children.expect_element_mut().expect_normal_mut();
-        let index = children.iter()
-                            .position(|e| Handle::from(e.clone()) == sibling)
-                            .expect(&format!("Dom::append_before_sibling(sibling: {:?}, child: \
-                                              {:?}), before is not child of self.",
-                                             sibling,
-                                             child));
+        let parent = parent.clone().unwrap().upgrade();
 
-        child.borrow_mut()
-             .set_parent(parent.downgrade().as_handle());
-        children.insert(index, child.clone());
+        match *parent.borrow_mut() {
+            (Node::Element(_, _, ref mut children), _) => {
+                let index = children.iter()
+                                    .position(|e| *e == sibling)
+                                    .unwrap();
+
+                children.insert(index, child);
+            }
+            _ => panic!("expected element, got: {:?}", parent),
+        }
 
         Ok(())
     }
@@ -183,75 +212,72 @@ impl TreeSink for Dom {
                                   name: StrTendril,
                                   public_id: StrTendril,
                                   system_id: StrTendril) {
-        self.document
-            .expect_document()
-            .borrow_mut()
-            .set_doctype(Doctype::new(name, public_id, system_id));
-    }
-
-    fn add_attrs_if_missing(&mut self, target: Handle, attrs: Vec<html5ever::Attribute>) {
-        let mut target = target.expect_node().borrow_mut();
-        let mut attributes = target.expect_element_mut().attributes_mut();
-
-        let names = attributes.iter().map(|a| a.name().clone()).collect::<HashSet<_>>();
-        let missing = attrs.into_iter().filter(|a| !names.contains(&a.name));
-        attributes.extend(missing.map(|a| a.clone().into()));
-    }
-
-    fn remove_from_parent(&mut self, target: Handle) {
-        match target {
-            Handle::DoctypeHandle(_) => panic!("Cannot remove doctype from parent."),
-            Handle::DocumentHandle(ref child) => {
-                let parent = {
-                    let document = child.borrow();
-                    document.parent()
-                            .expect(&format!("Dom::remove_from_parent(target: {:?}), target \
-                                              must have a parent.",
-                                             target))
-                            .clone()
-                };
-
-                Dom::remove_child_from_parent(&parent, &target);
-                child.borrow_mut().unset_parent();
+        match *self.document.borrow_mut() {
+            (Node::Document(ref mut doctype, _), _) => {
+                *doctype = Some(Doctype::new(name, public_id, system_id));
             }
-            Handle::NodeHandle(ref child) => {
-                let parent = {
-                    let node = child.borrow();
-                    node.parent()
-                        .expect(&format!("Dom::remove_from_parent(target: {:?}), target must \
-                                          have a parent.",
-                                         target))
-                        .clone()
-                };
-
-                Dom::remove_child_from_parent(&parent, &target);
-                child.borrow_mut().unset_parent();
-            }
+            _ => panic!("expected document"),
         }
     }
 
+    fn add_attrs_if_missing(&mut self, target: Handle, attrs: Vec<html5ever::Attribute>) {
+        fn join_attributes(old_attrs: &mut Vec<Attribute>, new_attrs: Vec<html5ever::Attribute>) {
+            let names = old_attrs.iter().map(|a| a.name().clone()).collect::<HashSet<_>>();
+            let missing = new_attrs.into_iter().filter(|a| !names.contains(&a.name));
+
+            old_attrs.extend(missing.map(|a| a.clone().into()));
+        }
+
+        match *target.borrow_mut() {
+            (Node::Element(_, ref mut old_attrs, _), _) => {
+                join_attributes(old_attrs, attrs);
+            }
+            _ => panic!("expected element, got {:?}", target),
+        }
+    }
+
+    fn remove_from_parent(&mut self, target: Handle) {
+        let parent = {
+            let (_, ref mut target_parent) = *target.borrow_mut();
+            let parent = target_parent.clone().unwrap().upgrade();
+
+            *target_parent = None;
+            parent
+        };
+
+        match *parent.borrow_mut() {
+            (Node::Document(_, ref mut old_child), _) => {
+                assert_eq!(old_child.as_ref(), Some(&target));
+                *old_child = None;
+            }
+            (Node::Element(_, _, ref mut children), _) => {
+                let index = children.iter()
+                                    .position(|e| *e == target)
+                                    .unwrap();
+                children.remove(index);
+            }
+            _ => panic!("expected document or element handle, got {:?}", parent),
+        };
+    }
+
     fn reparent_children(&mut self, old_parent: Handle, new_parent: Handle) {
-        match old_parent {
-            Handle::DoctypeHandle(_) => (),
-            Handle::DocumentHandle(ref parent) => {
-                if let Some(child) = parent.borrow().child() {
-                    let child = NodeOrText::AppendNode(child.clone().into());
-                    self.append(new_parent, child);
+        match *old_parent.borrow_mut() {
+            (Node::Document(_, ref mut child), _) => {
+                if let &mut Some(ref child) = child {
+                    self.append(new_parent, NodeOrText::AppendNode(child.clone()));
                 }
 
-                parent.borrow_mut().unset_child();
+                *child = None;
             }
-            Handle::NodeHandle(ref parent) => {
-                let mut parent = parent.borrow_mut();
-                let mut children = parent.expect_element_mut().expect_normal_mut();
-
+            (Node::Element(_, _, ref mut children), _) => {
                 for child in children.iter() {
-                    let child = NodeOrText::AppendNode(child.clone().into());
+                    let child = NodeOrText::AppendNode(child.clone());
                     self.append(new_parent.clone(), child);
                 }
 
                 children.clear();
             }
+            _ => panic!("expected document or element, got: {:?}", old_parent),
         }
     }
 
@@ -260,36 +286,38 @@ impl TreeSink for Dom {
 
 #[cfg(test)]
 mod tests {
-    use super::Dom;
+    use super::*;
     use test::Bencher;
 
-    use html5ever::driver::{parse_document, ParseOpts};
     use html5ever::tree_builder::{TreeSink, NodeOrText};
-    use html5ever::tendril::{StrTendril, TendrilSink};
+    use html5ever::tendril::StrTendril;
 
     use string_cache::QualName;
 
-    use html::{Attribute, Document, Handle};
+    use html::Attribute;
 
-    #[rustfmt_skip]
-    const DOCUMENT: &'static str =
-        "<!DOCTYPE html>
-         <html lang=\"en\">
-            <head>
-                <title>Test</title>
-            </head>
-            <body>
-                Document
-                <img src=\"test.flif\" alt=\"test\">
-            </body>
-         </html>";
+    #[test]
+    fn test_fragment() {
+        let mut dom = Dom::new();
+        let document = dom.get_document();
+        let html = dom.create_element(qualname!(html, "html"), Vec::new());
+        let head = dom.create_element(qualname!(html, "head"), Vec::new());
+        let body = dom.create_element(qualname!(html, "body"), Vec::new());
+        let element = dom.create_element(qualname!(html, "div"), Vec::new());
 
-    #[bench]
-    fn bench_parse_document(b: &mut Bencher) {
-        b.iter(|| {
-            let parser = parse_document(Dom::default(), ParseOpts::default()).from_utf8();
-            parser.one(DOCUMENT.as_bytes());
-        });
+        dom.append(document, NodeOrText::AppendNode(html.clone()));
+        dom.append(html.clone(), NodeOrText::AppendNode(head.clone()));
+        dom.append(html.clone(), NodeOrText::AppendNode(body.clone()));
+
+        dom.append(head.clone(), NodeOrText::AppendNode(element.clone()));
+
+        let fragment = dom.fragment();
+        assert_eq!(fragment, element);
+
+        dom.reparent_children(head.clone(), body.clone());
+
+        let fragment = dom.fragment();
+        assert_eq!(fragment, element);
     }
 
     #[test]
@@ -302,10 +330,7 @@ mod tests {
         dom.append(document.clone(), NodeOrText::AppendNode(template.clone()));
         dom.append(template.clone(), NodeOrText::AppendNode(element.clone()));
 
-        let document = Handle::new_document(Document::new(None,
-                                                          Some(element.expect_node().clone())));
-        assert!(dom.same_node(dom.get_template_contents(template.clone()),
-                              document.clone()));
+        assert_eq!(dom.get_template_contents(template.clone()), template);
     }
 
     #[test]
@@ -332,25 +357,19 @@ mod tests {
 
     fn do_test_create_element(dom: &mut Dom, name: QualName) {
         let attrs = &[Attribute::new_str("name", "test"), Attribute::new_str("id", "yup")];
-
         let element = dom.create_element(name.clone(),
                                          attrs.iter().map(|a| a.clone().into()).collect());
-        let node = element.expect_node().borrow();
-        let node = node.expect_element();
 
-        assert_eq!(element.expect_node().borrow().expect_element().attributes(),
-                   attrs);
-
-        assert_eq!(name, *node.name());
-
-        match name {
-            qualname!(html, "template") => {
-                node.expect_template();
+        match *element.borrow() {
+            (Node::Element(ref elem_name, ref elem_attrs, ref elem_children),
+             ref elem_parent) => {
+                assert_eq!(name, *elem_name);
+                assert_eq!(attrs, &elem_attrs[..]);
+                assert!(elem_children.is_empty());
+                assert!(elem_parent.is_none());
             }
-            _ => {
-                node.expect_normal();
-            }
-        }
+            _ => panic!("created element is not an element: {:?}", element),
+        };
     }
 
     #[test]
@@ -376,10 +395,13 @@ mod tests {
         let text = StrTendril::from("sup".to_owned());
         let comment = dom.create_comment(text.clone());
 
-        let comment = comment.expect_node().borrow();
-        let comment = comment.expect_comment();
-
-        assert_eq!(text, *comment.text());
+        match *comment.borrow() {
+            (Node::Comment(ref comment_text), ref comment_parent) => {
+                assert_eq!(text, *comment_text);
+                assert!(comment_parent.is_none());
+            }
+            _ => panic!("created comment is not a comment: {:?}", comment),
+        };
     }
 
     #[bench]
@@ -402,42 +424,37 @@ mod tests {
         {
             dom.append(document.clone(), NodeOrText::AppendNode(html.clone()));
 
-            let parent: Handle = html.expect_node()
-                                     .borrow()
-                                     .parent()
-                                     .unwrap()
-                                     .expect_document()
-                                     .clone()
-                                     .into();
-            assert_eq!(parent, document);
+            match *html.borrow() {
+                (Node::Element(_, _, _), ref parent) => {
+                    assert_eq!(document, parent.clone().unwrap().upgrade());
+                }
+                _ => panic!("html is not an element: {:?}", html),
+            }
 
-            let child: Handle = document.expect_document()
-                                        .borrow()
-                                        .child()
-                                        .unwrap()
-                                        .clone()
-                                        .into();
-            assert_eq!(child, html);
+            match *document.borrow() {
+                (Node::Document(_, ref child), _) => {
+                    assert_eq!(html, child.clone().unwrap());
+                }
+                _ => panic!("document is not a document: {:?}", document),
+            }
         }
 
         {
             dom.append(html.clone(), NodeOrText::AppendNode(body.clone()));
 
-            let parent: Handle = body.expect_node()
-                                     .borrow()
-                                     .parent()
-                                     .unwrap()
-                                     .expect_node()
-                                     .clone()
-                                     .into();
-            assert_eq!(parent, html);
+            match *body.borrow() {
+                (Node::Element(_, _, _), ref parent) => {
+                    assert_eq!(html, parent.clone().unwrap().upgrade());
+                }
+                _ => panic!("body is not an element: {:?}", body),
+            }
 
-            assert!(html.expect_node()
-                        .borrow()
-                        .expect_element()
-                        .expect_normal()
-                        .iter()
-                        .any(|c| Handle::from(c.clone()) == body));
+            match *html.borrow() {
+                (Node::Element(_, _, ref children), _) => {
+                    assert!(children.iter().any(|c| *c == body));
+                }
+                _ => panic!("html is not an element: {:?}", html),
+            };
         }
     }
 
@@ -455,11 +472,12 @@ mod tests {
         assert!(dom.append_before_sibling(body.clone(), NodeOrText::AppendNode(head.clone()))
                    .is_ok());
 
-        let html = html.expect_node().borrow();
-        let children = html.expect_element().expect_normal();
-
-        assert_eq!(children.iter().map(|c| c).collect::<Vec<_>>(),
-                   &[head.expect_node(), body.expect_node()]);
+        match *html.borrow() {
+            (Node::Element(_, _, ref children), _) => {
+                assert_eq!(&children[..], &[head, body]);
+            }
+            _ => panic!("html is not an element: {:?}", html),
+        };
     }
 
     #[test]
@@ -472,12 +490,15 @@ mod tests {
 
         dom.append_doctype_to_document(name.clone(), public_id.clone(), system_id.clone());
 
-        let document = document.expect_document().borrow();
-        let doctype = document.doctype().unwrap();
-
-        assert_eq!(*doctype.name(), name);
-        assert_eq!(*doctype.public_id(), public_id);
-        assert_eq!(*doctype.system_id(), system_id);
+        match *document.borrow() {
+            (Node::Document(ref doctype, _), _) => {
+                let doctype = doctype.clone().unwrap();
+                assert_eq!(*doctype.name(), name);
+                assert_eq!(*doctype.public_id(), public_id);
+                assert_eq!(*doctype.system_id(), system_id);
+            }
+            _ => panic!("document is not a document: {:?}", document),
+        };
     }
 
     #[test]
@@ -490,8 +511,12 @@ mod tests {
         dom.add_attrs_if_missing(html.clone(),
                                  attrs.iter().map(|a| a.clone().into()).collect());
 
-        assert_eq!(html.expect_node().borrow().expect_element().attributes(),
-                   attrs);
+        match *html.borrow() {
+            (Node::Element(_, ref elem_attrs, _), _) => {
+                assert_eq!(attrs, &elem_attrs[..]);
+            }
+            _ => panic!("html is not an element: {:?}", html),
+        };
     }
 
     #[test]
@@ -506,30 +531,34 @@ mod tests {
         dom.append(html.clone(), NodeOrText::AppendNode(head.clone()));
         dom.append(html.clone(), NodeOrText::AppendNode(body.clone()));
 
-        {
-            dom.remove_from_parent(head.clone());
+        dom.remove_from_parent(head.clone());
 
-            let html = html.expect_node().borrow();
-            let children = html.expect_element().expect_normal();
-            assert_eq!(children.iter().map(|c| c).collect::<Vec<_>>(),
-                       &[body.clone().expect_node()]);
+        match *html.borrow() {
+            (Node::Element(_, _, ref children), _) => {
+                assert_eq!(&children[..], &[body.clone()]);
+            }
+            _ => panic!("html is not an element: {:?}", html),
         }
 
-        {
-            dom.remove_from_parent(html.clone());
+        dom.remove_from_parent(html.clone());
 
-            let document = document.expect_document().borrow();
-            assert_eq!(document.child(), None);
+        match *document.borrow() {
+            (Node::Document(_, ref child), _) => {
+                assert!(child.is_none());
+            }
+            _ => panic!("document is not a document: {:?}", document),
         }
 
         dom.append(document.clone(), NodeOrText::AppendNode(html.clone()));
 
-        {
-            dom.remove_from_parent(body.clone());
+        dom.remove_from_parent(body.clone());
 
-            let document = document.expect_document().borrow();
-            assert_eq!(document.child(), Some(html.expect_node()));
-        }
+        match *document.borrow() {
+            (Node::Document(_, ref child), _) => {
+                assert_eq!(*child, Some(html));
+            }
+            _ => panic!("document is not a document: {:?}", document),
+        };
     }
 
     #[test]
@@ -547,25 +576,35 @@ mod tests {
 
         dom.reparent_children(html.clone(), target.clone());
 
-        {
-            assert!(html.expect_node().borrow().expect_element().expect_normal().is_empty());
+        match *html.borrow() {
+            (Node::Element(_, _, ref children), _) => {
+                assert!(children.is_empty());
+            }
+            _ => panic!("html is not an element: {:?}", html),
+        }
 
-            let target = target.expect_node().borrow();
-            let children = target.expect_element().expect_normal();
-            assert_eq!(children.iter().map(|c| c).collect::<Vec<_>>(),
-                       &[head.clone().expect_node(), body.clone().expect_node()]);
+        match *target.borrow() {
+            (Node::Element(_, _, ref children), _) => {
+                assert_eq!(&children[..], &[head, body]);
+            }
+            _ => panic!("target is not an element: {:?}", target),
         }
 
         dom.reparent_children(target.clone(), html.clone());
         dom.reparent_children(document.clone(), target.clone());
 
-        {
-            assert!(document.expect_document().borrow().child().is_none());
-
-            let target = target.expect_node().borrow();
-            let children = target.expect_element().expect_normal();
-            assert_eq!(children.iter().map(|c| c).collect::<Vec<_>>(),
-                       &[html.clone().expect_node()]);
+        match *document.borrow() {
+            (Node::Document(_, ref child), _) => {
+                assert!(child.is_none());
+            }
+            _ => panic!("document is not a document: {:?}", document),
         }
+
+        match *target.borrow() {
+            (Node::Element(_, _, ref children), _) => {
+                assert_eq!(&children[..], &[html]);
+            }
+            _ => panic!("target is not an element: {:?}", target),
+        };
     }
 }
