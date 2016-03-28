@@ -9,14 +9,34 @@ use html5ever::serialize::{Serializable, Serializer, TraversalScope};
 use super::{CommentNode, Document, ElementNode, ElementType, TextNode};
 use dom;
 
+/// Represents a node, which can be a comment, element or text.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Node {
+    /// Wrapper around a comment node.
     Comment(CommentNode),
+    /// Wrapper around an element node.
     Element(ElementNode),
+    /// Wrapper around a text node.
     Text(TextNode),
 }
 
 impl Node {
+    /// Takes a string and parses it like a fragment of a document.
+    /// Note that this only expects a single root node, which cannot be
+    /// an html, head or body tag.
+    ///
+    /// # Example
+    ///
+    ///     use borealis::html::{Attribute, Node, ElementNode, ElementType};
+    ///
+    ///     let fragment = "<img src=\"test.jpg\">";
+    ///     let node = Node::parse_str(fragment);
+    ///
+    ///     assert_eq!(node,
+    ///                ElementNode::new_str("img",
+    ///                                     vec![Attribute::new_str("src", "test.jpg")],
+    ///                                     ElementType::new_normal())
+    ///                    .into());
     pub fn parse_str(string: &str) -> Node {
         let parser = parse_document(dom::Dom::new(), ParseOpts::default()).from_utf8();
         let dom = parser.one(string.as_bytes());
@@ -72,7 +92,7 @@ impl Serializable for Node {
                                  traversal_scope: TraversalScope)
                                  -> io::Result<()> {
         match (traversal_scope, self) {
-            (_, &Node::Element(ref node)) => node.clone().serialize(serializer, traversal_scope),
+            (_, &Node::Element(ref node)) => node.serialize(serializer, traversal_scope),
             (TraversalScope::ChildrenOnly, _) => Ok(()),
             (TraversalScope::IncludeNode, &Node::Text(ref node)) => {
                 serializer.write_text(&node.text())

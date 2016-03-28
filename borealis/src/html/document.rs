@@ -9,6 +9,7 @@ use html5ever::serialize::{Serializable, Serializer, TraversalScope};
 use super::{Doctype, Node};
 use dom;
 
+/// Represents a document containing a doctype and a root node.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Document {
     doctype: Option<Doctype>,
@@ -62,11 +63,11 @@ impl Serializable for Document {
             TraversalScope::IncludeNode => panic!("Cannot serialize the Document node itself."),
             TraversalScope::ChildrenOnly => {
                 if let Some(ref doctype) = self.doctype {
-                    try!(doctype.clone().serialize(serializer, TraversalScope::IncludeNode));
+                    try!(doctype.serialize(serializer, TraversalScope::IncludeNode));
                 }
 
                 if let Some(ref child) = self.child {
-                    try!(child.clone().serialize(serializer, TraversalScope::IncludeNode));
+                    try!(child.serialize(serializer, TraversalScope::IncludeNode));
                 }
 
                 Ok(())
@@ -80,17 +81,19 @@ mod tests {
     use super::*;
     use test::Bencher;
 
+    use html::{Attribute, Doctype, ElementNode, TextNode};
+
     #[rustfmt_skip]
     const DOCUMENT: &'static str =
-        "<!DOCTYPE html>
-         <html lang=\"en\">
-            <head>
-                <title>Test</title>
-            </head>
-            <body>
-                Document
-                <img src=\"test.flif\" alt=\"test\">
-            </body>
+        "<!DOCTYPE html>\
+         <html lang=\"en\">\
+            <head>\
+                <title>Test</title>\
+            </head>\
+            <body>\
+                <h1>Document</h1>\
+                <img src=\"test.flif\" alt=\"test\">\
+            </body>\
          </html>";
 
     #[bench]
@@ -98,5 +101,28 @@ mod tests {
         b.iter(|| {
             Document::parse_str(DOCUMENT);
         });
+    }
+
+    #[test]
+    fn test_parse_document() {
+        let document = Document::parse_str(DOCUMENT);
+
+        let title = ElementNode::new_normal_str("title",
+                                                vec![],
+                                                vec![TextNode::new_str("Test").into()]);
+        let head = ElementNode::new_normal_str("head", vec![], vec![title.into()]);
+        let h1 = ElementNode::new_normal_str("h1",
+                                             vec![],
+                                             vec![TextNode::new_str("Document").into()]);
+        let img = ElementNode::new_normal_str("img",
+                                              vec![Attribute::new_str("src", "test.flif"),
+                                                   Attribute::new_str("alt", "test")],
+                                              vec![]);
+        let body = ElementNode::new_normal_str("body", vec![], vec![h1.into(), img.into()]);
+        let html = ElementNode::new_normal_str("html",
+                                               vec![Attribute::new_str("lang", "en")],
+                                               vec![head.into(), body.into()]);
+        assert_eq!(document,
+                   Document::new(Some(Doctype::new_html5()), Some(html.into())));
     }
 }

@@ -4,6 +4,7 @@ use std::io::{self, Write};
 use html5ever::tendril::StrTendril;
 use html5ever::serialize::{Serializable, Serializer, TraversalScope};
 
+/// Represents the doctype of a document.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Doctype {
     name: StrTendril,
@@ -20,12 +21,12 @@ impl Doctype {
         }
     }
 
-    pub fn new_string(name: String, public_id: String, system_id: String) -> Doctype {
-        Doctype::new(name.into(), public_id.into(), system_id.into())
-    }
-
     pub fn new_str(name: &str, public_id: &str, system_id: &str) -> Doctype {
         Doctype::new_string(name.to_owned(), public_id.to_owned(), system_id.to_owned())
+    }
+
+    pub fn new_string(name: String, public_id: String, system_id: String) -> Doctype {
+        Doctype::new(name.into(), public_id.into(), system_id.into())
     }
 
     pub fn new_html5() -> Doctype {
