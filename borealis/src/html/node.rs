@@ -33,9 +33,9 @@ impl Node {
     ///     let node = Node::parse_str(fragment);
     ///
     ///     assert_eq!(node,
-    ///                ElementNode::new_str("img",
-    ///                                     vec![Attribute::new_str("src", "test.jpg")],
-    ///                                     ElementType::new_normal())
+    ///                ElementNode::new("img",
+    ///                                 vec![Attribute::new("src", "test.jpg")],
+    ///                                 ElementType::new_normal())
     ///                    .into());
     pub fn parse_str(string: &str) -> Node {
         let parser = parse_document(dom::Dom::new(), ParseOpts::default()).from_utf8();
@@ -119,8 +119,8 @@ mod tests {
         let node = Node::parse_str(FRAGMENT);
         assert_eq!(node,
                    ElementNode::new(qualname!(html, "div"),
-                                    vec![Attribute::new_str("id", "test")],
-                                    ElementType::Normal(vec![TextNode::new_str("Hello!").into()]))
+                                    vec![Attribute::new("id", "test")],
+                                    ElementType::Normal(vec![TextNode::new("Hello!").into()]))
                        .into());
     }
 }

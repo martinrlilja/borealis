@@ -1,25 +1,39 @@
 
 use html5ever::tendril::StrTendril;
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct CommentText(StrTendril);
+
+impl From<StrTendril> for CommentText {
+    fn from(text: StrTendril) -> CommentText {
+        CommentText(text)
+    }
+}
+
+impl From<String> for CommentText {
+    fn from(text: String) -> CommentText {
+        CommentText(text.into())
+    }
+}
+
+impl<'a> From<&'a str> for CommentText {
+    fn from(text: &'a str) -> CommentText {
+        CommentText(text.clone().into())
+    }
+}
+
 /// Represents a comment in an HTML document.
 #[derive(Clone, Debug, PartialEq)]
-pub struct CommentNode(StrTendril);
+pub struct CommentNode(CommentText);
 
 impl CommentNode {
-    pub fn new(comment: StrTendril) -> CommentNode {
-        CommentNode(comment)
+    pub fn new<T: Into<CommentText>>(comment: T) -> CommentNode {
+        CommentNode(comment.into())
     }
 
-    pub fn new_str(text: &str) -> CommentNode {
-        CommentNode::new_string(text.to_owned())
-    }
-
-    pub fn new_string(text: String) -> CommentNode {
-        CommentNode::new(text.into())
-    }
-
+    #[inline]
     pub fn comment(&self) -> &StrTendril {
-        &self.0
+        &(self.0).0
     }
 }
 
@@ -35,12 +49,6 @@ mod tests {
         let tendril = StrTendril::from(string.clone());
 
         let comment = CommentNode::new(tendril.clone());
-        assert_eq!(*comment.comment(), tendril);
-
-        let comment = CommentNode::new_str(&string);
-        assert_eq!(*comment.comment(), tendril);
-
-        let comment = CommentNode::new_string(string.clone());
         assert_eq!(*comment.comment(), tendril);
     }
 }

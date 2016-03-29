@@ -107,21 +107,17 @@ mod tests {
     fn test_parse_document() {
         let document = Document::parse_str(DOCUMENT);
 
-        let title = ElementNode::new_normal_str("title",
-                                                vec![],
-                                                vec![TextNode::new_str("Test").into()]);
-        let head = ElementNode::new_normal_str("head", vec![], vec![title.into()]);
-        let h1 = ElementNode::new_normal_str("h1",
-                                             vec![],
-                                             vec![TextNode::new_str("Document").into()]);
-        let img = ElementNode::new_normal_str("img",
-                                              vec![Attribute::new_str("src", "test.flif"),
-                                                   Attribute::new_str("alt", "test")],
-                                              vec![]);
-        let body = ElementNode::new_normal_str("body", vec![], vec![h1.into(), img.into()]);
-        let html = ElementNode::new_normal_str("html",
-                                               vec![Attribute::new_str("lang", "en")],
-                                               vec![head.into(), body.into()]);
+        let title = ElementNode::new_normal("title", vec![], vec![TextNode::new("Test").into()]);
+        let head = ElementNode::new_normal("head", vec![], vec![title.into()]);
+        let h1 = ElementNode::new_normal("h1", vec![], vec![TextNode::new("Document").into()]);
+        let img = ElementNode::new_normal("img",
+                                          vec![Attribute::new("src", "test.flif"),
+                                               Attribute::new("alt", "test")],
+                                          vec![]);
+        let body = ElementNode::new_normal("body", vec![], vec![h1.into(), img.into()]);
+        let html = ElementNode::new_normal("html",
+                                           vec![Attribute::new("lang", "en")],
+                                           vec![head.into(), body.into()]);
         assert_eq!(document,
                    Document::new(Some(Doctype::new_html5()), Some(html.into())));
     }

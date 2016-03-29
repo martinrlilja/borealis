@@ -37,72 +37,66 @@ impl From<Document> for ElementType {
     }
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct ElementName(QualName);
+
+impl From<QualName> for ElementName {
+    fn from(name: QualName) -> ElementName {
+        ElementName(name)
+    }
+}
+
+impl From<String> for ElementName {
+    fn from(name: String) -> ElementName {
+        ElementName(QualName::new(ns!(html), name.into()))
+    }
+}
+
+impl<'a> From<&'a str> for ElementName {
+    fn from(name: &'a str) -> ElementName {
+        ElementName(QualName::new(ns!(html), name.clone().into()))
+    }
+}
+
 /// Represents an element with a name, attributes and children
 /// depending on it's type.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ElementNode {
-    name: QualName,
+    name: ElementName,
     attributes: Vec<Attribute>,
     element_type: ElementType,
 }
 
 impl ElementNode {
-    pub fn new(name: QualName,
-               attributes: Vec<Attribute>,
-               element_type: ElementType)
-               -> ElementNode {
+    pub fn new<N: Into<ElementName>>(name: N,
+                                     attributes: Vec<Attribute>,
+                                     element_type: ElementType)
+                                     -> ElementNode {
         ElementNode {
-            name: name,
+            name: name.into(),
             attributes: attributes,
             element_type: element_type,
         }
     }
 
-    pub fn new_string(name: String,
-                      attributes: Vec<Attribute>,
-                      element_type: ElementType)
-                      -> ElementNode {
-        ElementNode::new(QualName::new(ns!(html), name.into()),
-                         attributes,
-                         element_type)
+    pub fn new_normal<N: Into<ElementName>>(name: N,
+                                            attributes: Vec<Attribute>,
+                                            children: Vec<Node>)
+                                            -> ElementNode {
+        ElementNode::new(name.into(), attributes, ElementType::Normal(children))
     }
 
-    pub fn new_str(name: &str,
-                   attributes: Vec<Attribute>,
-                   element_type: ElementType)
-                   -> ElementNode {
-        ElementNode::new_string(name.to_owned(), attributes, element_type)
-    }
-
-    pub fn new_normal(name: QualName,
-                      attributes: Vec<Attribute>,
-                      children: Vec<Node>)
-                      -> ElementNode {
-        ElementNode::new(name, attributes, ElementType::Normal(children))
-    }
-
-    pub fn new_normal_string(name: String,
-                             attributes: Vec<Attribute>,
-                             children: Vec<Node>)
-                             -> ElementNode {
-        ElementNode::new_normal(QualName::new(ns!(html), name.into()), attributes, children)
-    }
-
-    pub fn new_normal_str(name: &str,
-                          attributes: Vec<Attribute>,
-                          children: Vec<Node>)
-                          -> ElementNode {
-        ElementNode::new_normal_string(name.to_owned(), attributes, children)
-    }
-
+    #[inline]
     pub fn name(&self) -> &QualName {
-        &self.name
+        &self.name.0
     }
 
+    #[inline]
     pub fn element_type(&self) -> &ElementType {
         &self.element_type
     }
 
+    #[inline]
     pub fn attributes(&self) -> &[Attribute] {
         &self.attributes
     }
@@ -114,7 +108,7 @@ impl Serializable for ElementNode {
                                  traversal_scope: TraversalScope)
                                  -> io::Result<()> {
         if traversal_scope == TraversalScope::IncludeNode {
-            try!(serializer.start_elem(self.name.clone(),
+            try!(serializer.start_elem(self.name().clone(),
                                        self.attributes.iter().map(|a| (a.name(), &a.value()[..]))));
         }
 
@@ -130,7 +124,7 @@ impl Serializable for ElementNode {
         }
 
         if traversal_scope == TraversalScope::IncludeNode {
-            try!(serializer.end_elem(self.name.clone()));
+            try!(serializer.end_elem(self.name().clone()));
         }
 
         Ok(())

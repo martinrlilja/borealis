@@ -4,57 +4,88 @@ use html5ever::tendril::StrTendril;
 
 use string_cache::QualName;
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct AttributeName(QualName);
+
+impl From<QualName> for AttributeName {
+    fn from(name: QualName) -> AttributeName {
+        AttributeName(name)
+    }
+}
+
+impl From<String> for AttributeName {
+    fn from(name: String) -> AttributeName {
+        AttributeName(QualName::new(ns!(), name.into()))
+    }
+}
+
+impl<'a> From<&'a str> for AttributeName {
+    fn from(name: &'a str) -> AttributeName {
+        AttributeName(QualName::new(ns!(), name.clone().into()))
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct AttributeValue(StrTendril);
+
+impl From<StrTendril> for AttributeValue {
+    fn from(value: StrTendril) -> AttributeValue {
+        AttributeValue(value)
+    }
+}
+
+impl From<String> for AttributeValue {
+    fn from(value: String) -> AttributeValue {
+        AttributeValue(value.into())
+    }
+}
+
+impl<'a> From<&'a str> for AttributeValue {
+    fn from(value: &'a str) -> AttributeValue {
+        AttributeValue(value.clone().into())
+    }
+}
+
 /// Represents an attribute of an element node.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Attribute {
-    name: QualName,
-    value: StrTendril,
+    name: AttributeName,
+    value: AttributeValue,
 }
 
 impl Attribute {
     /// Creates a new attribute from the given name and value.
-    pub fn new(name: QualName, value: StrTendril) -> Attribute {
+    pub fn new<N: Into<AttributeName>, V: Into<AttributeValue>>(name: N, value: V) -> Attribute {
         Attribute {
-            name: name,
-            value: value,
+            name: name.into(),
+            value: value.into(),
         }
     }
 
-    /// Convenience function for `Attribute::new`, assumes no namespace for `name`.
-    pub fn new_str(name: &str, value: &str) -> Attribute {
-        Attribute::new_string(name.to_owned(), value.to_owned())
-    }
-
-    /// Convenience function for `Attribute::new`, assumes no namespace for `name`.
-    pub fn new_string(name: String, value: String) -> Attribute {
-        Attribute::new(QualName::new(ns!(), name.into()), value.into())
-    }
-
-    /// Returns the name of the attribute.
+    /// The name of the attribute.
+    #[inline]
     pub fn name(&self) -> &QualName {
-        &self.name
+        &self.name.0
     }
 
-    /// Returns the value of the attribute.
+    /// The value of the attribute.
+    #[inline]
     pub fn value(&self) -> &StrTendril {
-        &self.value
+        &self.value.0
     }
 }
 
 impl From<html5ever::Attribute> for Attribute {
     fn from(attr: html5ever::Attribute) -> Attribute {
-        Attribute {
-            name: attr.name,
-            value: attr.value,
-        }
+        Attribute::new(attr.name, attr.value)
     }
 }
 
 impl Into<html5ever::Attribute> for Attribute {
     fn into(self) -> html5ever::Attribute {
         html5ever::Attribute {
-            name: self.name,
-            value: self.value,
+            name: self.name.0,
+            value: self.value.0,
         }
     }
 }
@@ -69,22 +100,11 @@ mod tests {
 
     #[test]
     fn test_new() {
-        let name = "name".to_owned();
-        let qualname = QualName::new(ns!(), name.clone().into());
+        let name = QualName::new(ns!(), "name".to_owned().clone().into());
+        let value = StrTendril::from("Test".to_owned().clone());
 
-        let value = "Test".to_owned();
-        let tendril = StrTendril::from(value.clone());
-
-        let attribute = Attribute::new(qualname.clone(), tendril.clone());
-        assert_eq!(*attribute.name(), qualname);
-        assert_eq!(*attribute.value(), tendril);
-
-        let attribute = Attribute::new_str(&name, &value);
-        assert_eq!(*attribute.name(), qualname);
-        assert_eq!(*attribute.value(), tendril);
-
-        let attribute = Attribute::new_string(name.clone(), value.clone());
-        assert_eq!(*attribute.name(), qualname);
-        assert_eq!(*attribute.value(), tendril);
+        let attribute = Attribute::new(name.clone(), value.clone());
+        assert_eq!(*attribute.name(), name);
+        assert_eq!(*attribute.value(), value);
     }
 }

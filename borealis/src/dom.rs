@@ -356,7 +356,7 @@ mod tests {
     }
 
     fn do_test_create_element(dom: &mut Dom, name: QualName) {
-        let attrs = &[Attribute::new_str("name", "test"), Attribute::new_str("id", "yup")];
+        let attrs = &[Attribute::new("name", "test"), Attribute::new("id", "yup")];
         let element = dom.create_element(name.clone(),
                                          attrs.iter().map(|a| a.clone().into()).collect());
 
@@ -504,7 +504,7 @@ mod tests {
     #[test]
     fn test_add_attrs_if_missing() {
         let mut dom = Dom::new();
-        let attrs = &[Attribute::new_str("name", "test"), Attribute::new_str("id", "yup")];
+        let attrs = &[Attribute::new("name", "test"), Attribute::new("id", "yup")];
 
         let html = dom.create_element(qualname!(html, "html"),
                                       attrs.iter().take(1).map(|a| a.clone().into()).collect());

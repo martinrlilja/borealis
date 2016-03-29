@@ -11,12 +11,12 @@ pub trait FragmentTemplate {
 
 impl FragmentTemplate for String {
     fn fragment_template(self) -> Node {
-        TextNode::new_string(self).into()
+        TextNode::new(self).into()
     }
 }
 
 impl<'a> FragmentTemplate for &'a str {
     fn fragment_template(self) -> Node {
-        TextNode::new_str(self).into()
+        TextNode::new(self).into()
     }
 }
