@@ -1,0 +1,18 @@
+[package]
+name    = "borealis_codegen"
+version = "0.1.0"
+authors = ["Martin Risell Lilja <martin.risell.lilja@gmail.com>"]
+license = "MIT/Apache-2.0"
+repository = "https://github.com/martinrlilja/borealis"
+
+[lib]
+crate-type = ["dylib", "rlib"]
+
+[dev-dependencies]
+borealis = { path = "../borealis" }
+
+[dependencies]
+string_cache = "0.2"
+aster = "0.14"
+quasi = "0.8"
+quasi_macros = "0.8"

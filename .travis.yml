@@ -7,3 +7,5 @@ os:
 script:
     - (cd borealis && cargo build --verbose)
     - (cd borealis && cargo test --verbose)
+    - (cd borealis_codegen && cargo build --verbose)
+    - (cd borealis_codegen && cargo test --verbose)
