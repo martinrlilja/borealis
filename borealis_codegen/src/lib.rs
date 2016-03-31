@@ -2,6 +2,7 @@
 #![plugin(quasi_macros)]
 
 extern crate aster;
+extern crate borealis;
 extern crate quasi;
 extern crate rustc;
 extern crate rustc_plugin;
@@ -9,10 +10,17 @@ extern crate string_cache;
 #[macro_use]
 extern crate syntax;
 
-use syntax::ast::{Item, ItemKind, MetaItem};
+use borealis::html::Document;
+
+use std::io::Read;
+use std::fs::File;
+use std::path::Path;
+
+use syntax::attr;
+use syntax::ast::{Item, ItemKind, LitKind, MetaItem, MetaItemKind};
 use syntax::codemap::Span;
 use syntax::ext::base::{Annotatable, ExtCtxt, SyntaxExtension};
-use syntax::parse::token;
+use syntax::parse::token::{self, InternedString};
 use syntax::ptr::P;
 
 use rustc_plugin::Registry;
@@ -27,7 +35,7 @@ fn expand_derive_document_template(cx: &mut ExtCtxt,
         Annotatable::Item(ref item) => item,
         _ => {
             cx.span_err(meta_item.span,
-                        "`#[derive(DocumentTemplate(..))]` may only be applied to structs");
+                        "`#[DocumentTemplate(..)]` may only be applied to structs");
             return;
         }
     };
@@ -43,11 +51,26 @@ fn build_document_template_item(cx: &ExtCtxt,
                                 builder: &aster::AstBuilder,
                                 item: &Item)
                                 -> Option<P<Item>> {
+    let filename = cx.filename.clone().unwrap();
+    let filename = Path::new(&filename);
+    let argument = attribute_argument(cx, item, "DocumentTemplate").unwrap();
+
+    filename.join(Path::new(&*argument));
+    let mut file = match File::open(&filename) {
+        Ok(f) => f,
+        Err(e) => panic!("{:?}", e),
+    };
+
+    let mut file_str = String::new();
+    file.read_to_string(&mut file_str).unwrap();
+
+    let document = Document::parse_str(&file_str);
+
     let generics = match item.node {
         ItemKind::Struct(_, ref generics) => generics,
         _ => {
             cx.span_err(item.span,
-                        "`#[derive(DocumentTemplate(..))]` may only be applied to structs");
+                        "`#[DocumentTemplate(..)]` may only be applied to structs");
             return None;
         }
     };
@@ -76,10 +99,39 @@ fn build_document_template_item(cx: &ExtCtxt,
            .unwrap())
 }
 
+fn attribute_argument(cx: &ExtCtxt, item: &Item, attribute: &str) -> Option<InternedString> {
+    let attribute_items = item.attrs().iter().filter_map(|a| {
+        match a.node.value.node {
+            MetaItemKind::List(ref name, ref items) if name == &attribute => {
+                attr::mark_used(&a);
+                Some(items)
+            }
+            _ => None,
+        }
+    });
+
+    for attr_items in attribute_items {
+        for attr_item in attr_items {
+            match attr_item.node {
+                MetaItemKind::NameValue(ref name, ref value) if name == &"file" => {
+                    if let LitKind::Str(ref s, _) = value.node {
+                        return Some(s.clone());
+                    } else {
+                        cx.span_err(value.span, "this must be a string");
+                    }
+                }
+                _ => continue,
+            }
+        }
+    }
+
+    return None;
+}
+
 #[plugin_registrar]
 pub fn plugin_registrar(reg: &mut Registry) {
     reg.register_syntax_extension(
-        token::intern("derive_DocumentTemplate"),
+        token::intern("DocumentTemplate"),
         SyntaxExtension::MultiDecorator(
             Box::new(expand_derive_document_template)));
 }

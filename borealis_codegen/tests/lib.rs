@@ -6,7 +6,7 @@ extern crate borealis;
 use borealis::DocumentTemplate;
 use borealis::html::Document;
 
-#[derive(DocumentTemplate)]
+#[DocumentTemplate(file="test_template.html")]
 struct TestTemplate {
     value: String,
 }
