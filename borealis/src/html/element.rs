@@ -86,6 +86,13 @@ impl ElementNode {
         ElementNode::new(name.into(), attributes, ElementType::Normal(children))
     }
 
+    pub fn new_template<N: Into<ElementName>>(name: N,
+                                              attributes: Vec<Attribute>,
+                                              document: Document)
+                                              -> ElementNode {
+        ElementNode::new(name.into(), attributes, ElementType::Template(document))
+    }
+
     #[inline]
     pub fn name(&self) -> &QualName {
         &self.name.0
