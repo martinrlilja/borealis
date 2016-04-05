@@ -13,4 +13,6 @@ borealis = { path = "../borealis" }
 aster = "0.14"
 quasi = "0.8"
 quasi_macros = "0.8"
+regex = "0.1"
+regex_macros = "0.1"
 string_cache = "0.2"

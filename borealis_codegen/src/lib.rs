@@ -1,9 +1,10 @@
 #![feature(plugin_registrar, rustc_private, plugin)]
-#![plugin(quasi_macros)]
+#![plugin(quasi_macros, regex_macros)]
 
 extern crate aster;
 extern crate borealis;
 extern crate quasi;
+extern crate regex;
 extern crate rustc;
 extern crate rustc_plugin;
 extern crate string_cache;
@@ -11,16 +12,15 @@ extern crate string_cache;
 extern crate syntax;
 
 use borealis::string_cache::QualName;
-use borealis::html::{Attribute, Doctype, Document, Node, ElementNode, ElementType};
+use borealis::html::{Attribute, Doctype, Document, Node, ElementNode, ElementType, TextNode};
 
-use std::io::Read;
-use std::fs::File;
 use std::path::Path;
 
 use syntax::attr;
 use syntax::ast::{Expr, Item, ItemKind, LitKind, MetaItem, MetaItemKind};
 use syntax::codemap::Span;
 use syntax::ext::base::{Annotatable, ExtCtxt, SyntaxExtension};
+use syntax::ext::quote::rt::ExtParseUtils;
 use syntax::parse::token::{self, InternedString};
 use syntax::ptr::P;
 
@@ -109,7 +109,9 @@ fn document_expression(cx: &ExtCtxt, builder: &aster::AstBuilder, document: &Doc
                                               .map(|d| doctype_expression(cx, builder, d)));
     let child_expr = option_to_expr(cx,
                                     builder,
-                                    document.child().map(|c| node_expression(cx, builder, c)));
+                                    document.child().map(|c| {
+                                        node_expression(cx, builder, c).remove(0)
+                                    }));
 
     quote_expr!(cx, {
         ::borealis::html::Document::new($doctype_expr, $child_expr)
@@ -126,22 +128,53 @@ fn doctype_expression(cx: &ExtCtxt, builder: &aster::AstBuilder, doctype: &Docty
     })
 }
 
-fn node_expression(cx: &ExtCtxt, builder: &aster::AstBuilder, node: &Node) -> P<Expr> {
+fn node_expression(cx: &ExtCtxt, builder: &aster::AstBuilder, node: &Node) -> Vec<P<Expr>> {
     match *node {
         Node::Comment(ref comment) => {
             let s = string_expr(builder, comment.comment());
-            quote_expr!(cx, {
+            vec![quote_expr!(cx, {
                 ::borealis::html::CommentNode::new($s).into()
-            })
+            })]
         }
         Node::Text(ref text) => {
-            let s = string_expr(builder, text.text());
-            quote_expr!(cx, {
-                ::borealis::html::TextNode::new($s).into()
-            })
+            text_node_expression(cx, builder, text)
         }
-        Node::Element(ref element) => element_node_expression(cx, builder, element),
+        Node::Element(ref element) => vec![element_node_expression(cx, builder, element)],
     }
+}
+
+fn text_node_expression(cx: &ExtCtxt,
+                        builder: &aster::AstBuilder,
+                        text: &TextNode) -> Vec<P<Expr>> {
+    let string: String = text.text().into();
+    let regex = regex!(r##"\{{2}([^"]|"(\\"|[^"])*")*?\}{2}"##);
+    let mut last_end = 0;
+    let mut exprs = Vec::new();
+
+    for (start, end) in regex.find_iter(&string[..]) {
+        if last_end != start {
+            let s = str_expr(builder, &string[last_end..start]);
+            exprs.push(quote_expr!(cx, {
+                ::borealis::html::TextNode::new($s).into()
+            }));
+        }
+
+        let expr = cx.parse_expr(string[start+2..end-2].to_owned());
+        exprs.push(quote_expr!(cx, {
+            ::borealis::FragmentTemplate::fragment_template($expr)
+        }));
+
+        last_end = end;
+    }
+
+    if last_end != string.len() {
+        let s = str_expr(builder, &string[last_end..]);
+        exprs.push(quote_expr!(cx, {
+            ::borealis::html::TextNode::new($s).into()
+        }));
+    }
+
+    exprs
 }
 
 fn element_node_expression(cx: &ExtCtxt,
@@ -155,7 +188,7 @@ fn element_node_expression(cx: &ExtCtxt,
 
     match *element.element_type() {
         ElementType::Normal(ref children) => {
-            let child_exprs = children.iter().map(|c| node_expression(cx, builder, c));
+            let child_exprs = children.iter().flat_map(|c| node_expression(cx, builder, c));
             let child_exprs = builder.expr().vec().with_exprs(child_exprs).build();
 
             quote_expr!(cx, {
@@ -184,7 +217,7 @@ fn attribute_expression(cx: &ExtCtxt,
                         attribute: &Attribute)
                         -> P<Expr> {
     let name = qualname_str(cx, builder, attribute.name());
-    let value = string_expr(builder, attribute.value());
+    let value = string_code_expr(cx, builder, attribute.value());
 
     quote_expr!(cx, {
         ::borealis::html::Attribute::new($name, $value)
@@ -194,6 +227,17 @@ fn attribute_expression(cx: &ExtCtxt,
 fn string_expr<'a, T: Into<String> + Clone>(builder: &aster::AstBuilder, s: &'a T) -> P<Expr> {
     let s: String = s.clone().into();
     builder.expr().str(&s[..])
+}
+
+fn string_code_expr<'a, T: Into<String> + Clone>(cx: &ExtCtxt, builder: &aster::AstBuilder, s: &'a T) -> P<Expr> {
+    let s: String = s.clone().into();
+
+    if s.starts_with("{{") && s.ends_with("}}") {
+        let s = s[2..s.len()-2].to_owned();
+        cx.parse_expr(s)
+    } else {
+        builder.expr().str(&s[..])
+    }
 }
 
 fn str_expr(builder: &aster::AstBuilder, s: &str) -> P<Expr> {

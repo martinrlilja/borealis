@@ -21,7 +21,7 @@ fn test_test_template() {
         value: "Test".to_owned(),
     };
     let document_a = template.document_template();
-    let document_b = read_document("tests/test_template.html");
+    let document_b = read_document("tests/test_template_expected.html");
 
     assert_eq!(document_a, document_b);
 }
