@@ -1,4 +1,4 @@
-#![feature(plugin, custom_derive)]
+#![feature(plugin)]
 #![plugin(borealis_codegen)]
 
 extern crate borealis;
