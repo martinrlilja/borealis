@@ -6,6 +6,33 @@
 
 It is currently in early development, so there is not much to see here at the moment.
 
+## How to use
+
+```rust
+#![feature(plugin)]
+#![plugin(borealis_codegen)]
+
+#[template_document(file="template.html")]
+struct Template {
+    value: String,
+}
+```
+The template file needs to be in the same directory as the code file.
+
+```html
+<!DOCTYPE html>
+<html>
+    <body>
+        {{ self.value }}
+    </body>
+</html>
+```
+
+You can now call `borealis::DocumentTemplate::document_template(template)`
+on an instance of `Template` to get the document tree.
+
+Serialization is coming soon.
+
 ## License
 
 Licensed under either of
