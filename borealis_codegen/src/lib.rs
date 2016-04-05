@@ -147,7 +147,7 @@ fn text_node_expression(cx: &ExtCtxt,
                         builder: &aster::AstBuilder,
                         text: &TextNode) -> Vec<P<Expr>> {
     let string: String = text.text().into();
-    let regex = regex!(r##"\{{2}([^"]|"(\\"|[^"])*")*?\}{2}"##);
+    let regex = regex!(r#"\{{2}([^"]|"(\\"|[^"])*")*?(\}{2}|"([^"]|\\")*$|$)"#);
     let mut last_end = 0;
     let mut exprs = Vec::new();
 
@@ -159,10 +159,14 @@ fn text_node_expression(cx: &ExtCtxt,
             }));
         }
 
-        let expr = cx.parse_expr(string[start+2..end-2].to_owned());
-        exprs.push(quote_expr!(cx, {
-            ::borealis::FragmentTemplate::fragment_template($expr)
-        }));
+        if !string[start+2..end].ends_with("}}") {
+            cx.span_err(cx.original_span(), &format!("unmatched {} around: {}", "{{", &string[start..end]));
+        } else {
+            let expr = cx.parse_expr(string[start+2..end-2].to_owned());
+            exprs.push(quote_expr!(cx, {
+                ::borealis::FragmentTemplate::fragment_template($expr)
+            }));
+        }
 
         last_end = end;
     }
