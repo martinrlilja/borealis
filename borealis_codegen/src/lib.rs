@@ -36,7 +36,7 @@ fn expand_derive_document_template(cx: &mut ExtCtxt,
         Annotatable::Item(ref item) => item,
         _ => {
             cx.span_err(meta_item.span,
-                        "`#[DocumentTemplate(..)]` may only be applied to structs");
+                        "`#[template_document(..)]` may only be applied to structs");
             return;
         }
     };
@@ -54,21 +54,17 @@ fn build_document_template_item(cx: &ExtCtxt,
                                 -> Option<P<Item>> {
     let filename = cx.filename.clone().unwrap();
     let filename = Path::new(&filename);
-    let argument = attribute_argument(cx, item, "DocumentTemplate").unwrap();
+    let argument = attribute_argument(cx, item, "template_document").unwrap();
 
     let filename = filename.parent().unwrap().join(Path::new(&*argument));
-    let mut file = File::open(&filename).unwrap();
-
-    let mut file_str = String::new();
-    file.read_to_string(&mut file_str).unwrap();
-
-    let document = Document::parse_str(&file_str);
+    let file = cx.codemap().load_file(&filename).unwrap();
+    let document = Document::parse_str(&file.src.as_ref().unwrap());
 
     let generics = match item.node {
         ItemKind::Struct(_, ref generics) => generics,
         _ => {
             cx.span_err(item.span,
-                        "`#[DocumentTemplate(..)]` may only be applied to structs");
+                        "`#[template_document(..)]` may only be applied to structs");
             return None;
         }
     };
@@ -248,7 +244,7 @@ fn attribute_argument(cx: &ExtCtxt, item: &Item, attribute: &str) -> Option<Inte
 #[plugin_registrar]
 pub fn plugin_registrar(reg: &mut Registry) {
     reg.register_syntax_extension(
-        token::intern("DocumentTemplate"),
+        token::intern("template_document"),
         SyntaxExtension::MultiDecorator(
             Box::new(expand_derive_document_template)));
 }

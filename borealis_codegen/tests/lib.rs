@@ -10,7 +10,7 @@ use std::path::Path;
 use borealis::DocumentTemplate;
 use borealis::html::Document;
 
-#[DocumentTemplate(file="test_template.html")]
+#[template_document(file="test_template.html")]
 struct TestTemplate {
     value: String,
 }
