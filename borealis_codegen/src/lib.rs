@@ -86,11 +86,12 @@ fn build_document_template_item(cx: &ExtCtxt,
     let document_expr = document_expression(cx, builder, &document);
 
     Some(quote_item!(cx,
-                   impl $impl_generics ::std::convert::Into<::borealis::html::Document> for $ty $where_clause {
-                       fn into(self) -> ::borealis::html::Document {
-                           $document_expr
-                       }
-                   })
+            impl $impl_generics ::std::convert::Into<::borealis::html::Document>
+                for $ty $where_clause {
+                fn into(self) -> ::borealis::html::Document {
+                    $document_expr
+                }
+            })
              .unwrap())
 }
 
@@ -138,9 +139,7 @@ fn node_expression(cx: &ExtCtxt, builder: &aster::AstBuilder, node: &Node) -> P<
                 vec![::borealis::html::Node::from(::borealis::html::CommentNode::new($s))]
             })
         }
-        Node::Text(ref text) => {
-            text_node_expression(cx, builder, text)
-        }
+        Node::Text(ref text) => text_node_expression(cx, builder, text),
         Node::Element(ref element) => {
             let expr = element_node_expression(cx, builder, element);
             quote_expr!(cx, {
@@ -150,15 +149,16 @@ fn node_expression(cx: &ExtCtxt, builder: &aster::AstBuilder, node: &Node) -> P<
     }
 }
 
-fn text_node_expression(cx: &ExtCtxt,
-                        builder: &aster::AstBuilder,
-                        text: &TextNode) -> P<Expr> {
+fn text_node_expression(cx: &ExtCtxt, builder: &aster::AstBuilder, text: &TextNode) -> P<Expr> {
     let string: String = text.text().into();
     let regex = regex!(r#"\{{2}([^"]|"(\\"|[^"])*")*?(\}{2}|"([^"]|\\")*$|$)"#);
     let mut last_end = 0;
     let mut exprs = Vec::new();
 
-    fn add_text_node_str(cx: &ExtCtxt, builder: &aster::AstBuilder, exprs: &mut Vec<P<Expr>>, s: &str) {
+    fn add_text_node_str(cx: &ExtCtxt,
+                         builder: &aster::AstBuilder,
+                         exprs: &mut Vec<P<Expr>>,
+                         s: &str) {
         let s = str_expr(builder, s);
         exprs.push(quote_expr!(cx, {
             vec![::borealis::html::TextNode::new($s).into()] as Vec<::borealis::html::Node>
@@ -170,10 +170,11 @@ fn text_node_expression(cx: &ExtCtxt,
             add_text_node_str(cx, builder, &mut exprs, &string[last_end..start]);
         }
 
-        if !string[start+2..end].ends_with("}}") {
-            cx.span_err(cx.original_span(), &format!("unmatched {} around: {}", "{{", &string[start..end]));
+        if !string[start + 2..end].ends_with("}}") {
+            cx.span_err(cx.original_span(),
+                        &format!("unmatched {} around: {}", "{{", &string[start..end]));
         } else {
-            let expr = cx.parse_expr(string[start+2..end-2].to_owned());
+            let expr = cx.parse_expr(string[start + 2..end - 2].to_owned());
             exprs.push(quote_expr!(cx, {
                 use ::borealis::{IntoNode, IntoNodes};
                 $expr.into_nodes()
@@ -264,11 +265,14 @@ fn string_expr<'a, T: Into<String> + Clone>(builder: &aster::AstBuilder, s: &'a 
     builder.expr().str(&s[..])
 }
 
-fn string_code_expr<'a, T: Into<String> + Clone>(cx: &ExtCtxt, builder: &aster::AstBuilder, s: &'a T) -> P<Expr> {
+fn string_code_expr<'a, T: Into<String> + Clone>(cx: &ExtCtxt,
+                                                 builder: &aster::AstBuilder,
+                                                 s: &'a T)
+                                                 -> P<Expr> {
     let s: String = s.clone().into();
 
     if s.starts_with("{{") && s.ends_with("}}") {
-        let s = s[2..s.len()-2].to_owned();
+        let s = s[2..s.len() - 2].to_owned();
         cx.parse_expr(s)
     } else {
         builder.expr().str(&s[..])

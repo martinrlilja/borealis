@@ -13,7 +13,7 @@ pub trait IntoNodes {
     fn into_nodes(self) -> Vec<Node>;
 }
 
-impl<I: IntoNode, T: IntoIterator<Item=I>> IntoNodes for T {
+impl<I: IntoNode, T: IntoIterator<Item = I>> IntoNodes for T {
     fn into_nodes(self) -> Vec<Node> {
         self.into_iter().map(|n| n.into_node()).collect()
     }
