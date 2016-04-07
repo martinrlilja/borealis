@@ -287,6 +287,7 @@ impl TreeSink for Dom {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(feature = "nightly")]
     use test::Bencher;
 
     use html5ever::tree_builder::{TreeSink, NodeOrText};
@@ -380,6 +381,7 @@ mod tests {
         do_test_create_element(&mut dom, qualname!(html, "html"));
     }
 
+    #[cfg(feature = "nightly")]
     #[bench]
     fn bench_create_element(b: &mut Bencher) {
         let mut dom = Dom::new();
@@ -404,6 +406,7 @@ mod tests {
         };
     }
 
+    #[cfg(feature = "nightly")]
     #[bench]
     fn bench_create_comment(b: &mut Bencher) {
         let mut dom = Dom::new();

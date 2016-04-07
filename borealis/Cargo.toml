@@ -5,6 +5,9 @@ authors = ["Martin Risell Lilja <martin.risell.lilja@gmail.com>"]
 license = "MIT/Apache-2.0"
 repository = "https://github.com/martinrlilja/borealis"
 
+[features]
+nightly = []
+
 [dependencies]
 html5ever    = "0.5"
 string_cache = "0.2"

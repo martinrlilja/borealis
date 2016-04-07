@@ -83,11 +83,12 @@ impl Serializable for Document {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(feature = "nightly")]
     use test::Bencher;
 
     use html::{Attribute, Doctype, ElementNode, TextNode};
 
-    #[rustfmt_skip]
+    #[cfg_attr(feature = "nightly", rustfmt_skip)]
     const DOCUMENT: &'static str =
         "<!DOCTYPE html>\
          <html lang=\"en\">\
@@ -100,6 +101,7 @@ mod tests {
             </body>\
          </html>";
 
+    #[cfg(feature = "nightly")]
     #[bench]
     fn bench_parse_document(b: &mut Bencher) {
         b.iter(|| {

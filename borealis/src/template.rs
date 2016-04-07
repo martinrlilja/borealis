@@ -1,5 +1,5 @@
 
-use super::html::{Document, Node, TextNode};
+use super::html::{Node, TextNode};
 
 pub trait IntoNode : Sized {
     fn into_node(self) -> Node;

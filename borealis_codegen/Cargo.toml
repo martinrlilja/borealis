@@ -9,7 +9,7 @@ repository = "https://github.com/martinrlilja/borealis"
 crate-type = ["dylib", "rlib"]
 
 [dependencies]
-borealis = { path = "../borealis" }
+borealis = { path = "../borealis", features = ["nightly"] }
 aster = "0.14"
 quasi = "0.8"
 quasi_macros = "0.8"

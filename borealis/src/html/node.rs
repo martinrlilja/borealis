@@ -110,7 +110,7 @@ mod tests {
 
     use html::{Attribute, ElementNode, ElementType, TextNode};
 
-    #[rustfmt_skip]
+    #[cfg_attr(feature = "nightly", rustfmt_skip)]
     const FRAGMENT: &'static str =
         "<div id=\"test\">Hello!</div>";
 
