@@ -126,7 +126,7 @@ impl Serializable for ElementNode {
                 }
             }
             ElementType::Template(ref document) => {
-                try!(document.clone().serialize(serializer, traversal_scope));
+                try!(Serializable::serialize(document, serializer, traversal_scope));
             }
         }
 

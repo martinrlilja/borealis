@@ -7,7 +7,6 @@ use std::io::Read;
 use std::fs::File;
 use std::path::Path;
 
-use borealis::DocumentTemplate;
 use borealis::html::Document;
 
 #[template_document(file="test_template.html")]
@@ -20,8 +19,8 @@ fn test_test_template() {
     let template = TestTemplate {
         value: "Test".to_owned(),
     };
-    let document_a = template.document_template();
-    let document_b = read_document("tests/test_template_expected.html");
+    let document_a = serialize(template.into());
+    let document_b = serialize(read_document("tests/test_template_expected.html"));
 
     assert_eq!(document_a, document_b);
 }
@@ -37,4 +36,10 @@ fn read_document<P: AsRef<Path>>(path: P) -> Document {
     };
 
     Document::parse_str(&file_str)
+}
+
+fn serialize(document: Document) -> String {
+    let mut w = Vec::new();
+    document.serialize(&mut w).unwrap();
+    String::from_utf8(w).unwrap()
 }

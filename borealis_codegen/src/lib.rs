@@ -26,7 +26,6 @@ use syntax::ptr::P;
 
 use rustc_plugin::Registry;
 
-// https://github.com/serde-rs/serde/blob/master/serde_codegen/src/ser.rs
 fn expand_derive_document_template(cx: &mut ExtCtxt,
                                    span: Span,
                                    meta_item: &MetaItem,
@@ -72,7 +71,7 @@ fn build_document_template_item(cx: &ExtCtxt,
     let impl_generics = builder.from_generics(generics.clone())
                                .add_ty_param_bound(builder.path()
                                                           .global()
-                                                          .ids(&["borealis", "DocumentTemplate"])
+                                                          .ids(&["std", "convert", "Into"])
                                                           .build())
                                .build();
     let ty = builder.ty()
@@ -87,8 +86,8 @@ fn build_document_template_item(cx: &ExtCtxt,
     let document_expr = document_expression(cx, builder, &document);
 
     Some(quote_item!(cx,
-                   impl $impl_generics ::borealis::DocumentTemplate for $ty $where_clause {
-                       fn document_template(self) -> ::borealis::html::Document {
+                   impl $impl_generics ::std::convert::Into<::borealis::html::Document> for $ty $where_clause {
+                       fn into(self) -> ::borealis::html::Document {
                            $document_expr
                        }
                    })
@@ -110,7 +109,10 @@ fn document_expression(cx: &ExtCtxt, builder: &aster::AstBuilder, document: &Doc
     let child_expr = option_to_expr(cx,
                                     builder,
                                     document.child().map(|c| {
-                                        node_expression(cx, builder, c).remove(0)
+                                        let expr = node_expression(cx, builder, c);
+                                        quote_expr!(cx, {
+                                            $expr.remove(0)
+                                        })
                                     }));
 
     quote_expr!(cx, {
@@ -128,35 +130,44 @@ fn doctype_expression(cx: &ExtCtxt, builder: &aster::AstBuilder, doctype: &Docty
     })
 }
 
-fn node_expression(cx: &ExtCtxt, builder: &aster::AstBuilder, node: &Node) -> Vec<P<Expr>> {
+fn node_expression(cx: &ExtCtxt, builder: &aster::AstBuilder, node: &Node) -> P<Expr> {
     match *node {
         Node::Comment(ref comment) => {
             let s = string_expr(builder, comment.comment());
-            vec![quote_expr!(cx, {
-                ::borealis::html::CommentNode::new($s).into()
-            })]
+            quote_expr!(cx, {
+                vec![::borealis::html::Node::from(::borealis::html::CommentNode::new($s))]
+            })
         }
         Node::Text(ref text) => {
             text_node_expression(cx, builder, text)
         }
-        Node::Element(ref element) => vec![element_node_expression(cx, builder, element)],
+        Node::Element(ref element) => {
+            let expr = element_node_expression(cx, builder, element);
+            quote_expr!(cx, {
+                vec![$expr]
+            })
+        }
     }
 }
 
 fn text_node_expression(cx: &ExtCtxt,
                         builder: &aster::AstBuilder,
-                        text: &TextNode) -> Vec<P<Expr>> {
+                        text: &TextNode) -> P<Expr> {
     let string: String = text.text().into();
     let regex = regex!(r#"\{{2}([^"]|"(\\"|[^"])*")*?(\}{2}|"([^"]|\\")*$|$)"#);
     let mut last_end = 0;
     let mut exprs = Vec::new();
 
+    fn add_text_node_str(cx: &ExtCtxt, builder: &aster::AstBuilder, exprs: &mut Vec<P<Expr>>, s: &str) {
+        let s = str_expr(builder, s);
+        exprs.push(quote_expr!(cx, {
+            vec![::borealis::html::TextNode::new($s).into()] as Vec<::borealis::html::Node>
+        }));
+    };
+
     for (start, end) in regex.find_iter(&string[..]) {
         if last_end != start {
-            let s = str_expr(builder, &string[last_end..start]);
-            exprs.push(quote_expr!(cx, {
-                ::borealis::html::TextNode::new($s).into()
-            }));
+            add_text_node_str(cx, builder, &mut exprs, &string[last_end..start]);
         }
 
         if !string[start+2..end].ends_with("}}") {
@@ -164,7 +175,8 @@ fn text_node_expression(cx: &ExtCtxt,
         } else {
             let expr = cx.parse_expr(string[start+2..end-2].to_owned());
             exprs.push(quote_expr!(cx, {
-                ::borealis::FragmentTemplate::fragment_template($expr)
+                use ::borealis::{IntoNode, IntoNodes};
+                $expr.into_nodes()
             }));
         }
 
@@ -172,13 +184,21 @@ fn text_node_expression(cx: &ExtCtxt,
     }
 
     if last_end != string.len() {
-        let s = str_expr(builder, &string[last_end..]);
-        exprs.push(quote_expr!(cx, {
-            ::borealis::html::TextNode::new($s).into()
-        }));
+        add_text_node_str(cx, builder, &mut exprs, &string[last_end..]);
     }
 
-    exprs
+    let exprs = builder.expr().vec().with_exprs(exprs).build();
+
+    quote_expr!(cx, {
+        let exprs: Vec<Vec<::borealis::html::Node>> = $exprs;
+        let mut out = Vec::new();
+
+        for expr in exprs {
+            out.extend(expr);
+        }
+
+        out
+    })
 }
 
 fn element_node_expression(cx: &ExtCtxt,
@@ -192,14 +212,25 @@ fn element_node_expression(cx: &ExtCtxt,
 
     match *element.element_type() {
         ElementType::Normal(ref children) => {
-            let child_exprs = children.iter().flat_map(|c| node_expression(cx, builder, c));
+            let child_exprs = children.iter().map(|c| node_expression(cx, builder, c));
             let child_exprs = builder.expr().vec().with_exprs(child_exprs).build();
 
             quote_expr!(cx, {
+                let exprs: Vec<Vec<::borealis::html::Node>> = $child_exprs;
+                let children = {
+                    let mut out = Vec::new();
+
+                    for expr in exprs {
+                        out.extend(expr);
+                    }
+
+                    out
+                };
+
                 ::borealis::html::ElementNode::new_normal(
                     $name_expr,
                     $attribute_exprs,
-                    $child_exprs
+                    children
                 ).into()
             })
         }

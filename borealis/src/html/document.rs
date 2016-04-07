@@ -4,7 +4,7 @@ use std::io::{self, Write};
 use html5ever::driver::{parse_document, ParseOpts};
 use html5ever::tree_builder::TreeSink;
 use html5ever::tendril::TendrilSink;
-use html5ever::serialize::{Serializable, Serializer, TraversalScope};
+use html5ever::serialize::{Serializable, Serializer, serialize, SerializeOpts, TraversalScope};
 
 use super::{Doctype, Node};
 use dom;
@@ -40,6 +40,10 @@ impl Document {
         let dom = parser.one(string.as_bytes());
 
         dom.document().into()
+    }
+
+    pub fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
+        serialize(writer, self, SerializeOpts::default())
     }
 }
 

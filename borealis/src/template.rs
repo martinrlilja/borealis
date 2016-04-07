@@ -1,22 +1,32 @@
 
 use super::html::{Document, Node, TextNode};
 
-pub trait DocumentTemplate {
-    fn document_template(self) -> Document;
+pub trait IntoNode : Sized {
+    fn into_node(self) -> Node;
+
+    fn into_nodes(self) -> Vec<Node> {
+        vec![self.into_node()]
+    }
 }
 
-pub trait FragmentTemplate {
-    fn fragment_template(self) -> Node;
+pub trait IntoNodes {
+    fn into_nodes(self) -> Vec<Node>;
 }
 
-impl FragmentTemplate for String {
-    fn fragment_template(self) -> Node {
+impl<I: IntoNode, T: IntoIterator<Item=I>> IntoNodes for T {
+    fn into_nodes(self) -> Vec<Node> {
+        self.into_iter().map(|n| n.into_node()).collect()
+    }
+}
+
+impl IntoNode for String {
+    fn into_node(self) -> Node {
         TextNode::new(self).into()
     }
 }
 
-impl<'a> FragmentTemplate for &'a str {
-    fn fragment_template(self) -> Node {
+impl<'a> IntoNode for &'a str {
+    fn into_node(self) -> Node {
         TextNode::new(self).into()
     }
 }
