@@ -70,10 +70,7 @@ pub fn text_node_expression(cx: &ExtCtxt, builder: &AstBuilder, text: &TextNode)
     let mut last_end = 0;
     let mut exprs = Vec::new();
 
-    fn add_text_node_str(cx: &ExtCtxt,
-                         builder: &AstBuilder,
-                         exprs: &mut Vec<P<Expr>>,
-                         s: &str) {
+    fn add_text_node_str(cx: &ExtCtxt, builder: &AstBuilder, exprs: &mut Vec<P<Expr>>, s: &str) {
         let s = str_expr(builder, s);
         exprs.push(quote_expr!(cx, {
             vec![::borealis::html::TextNode::new($s).into()] as Vec<::borealis::html::Node>
@@ -118,9 +115,9 @@ pub fn text_node_expression(cx: &ExtCtxt, builder: &AstBuilder, text: &TextNode)
 }
 
 pub fn element_node_expression(cx: &ExtCtxt,
-                           builder: &AstBuilder,
-                           element: &ElementNode)
-                           -> P<Expr> {
+                               builder: &AstBuilder,
+                               element: &ElementNode)
+                               -> P<Expr> {
     let name_expr = qualname_expr(cx, builder, element.name());
 
     let attribute_exprs = element.attributes().iter().map(|a| attribute_expression(cx, builder, a));
@@ -163,10 +160,7 @@ pub fn element_node_expression(cx: &ExtCtxt,
     }
 }
 
-pub fn attribute_expression(cx: &ExtCtxt,
-                        builder: &AstBuilder,
-                        attribute: &Attribute)
-                        -> P<Expr> {
+pub fn attribute_expression(cx: &ExtCtxt, builder: &AstBuilder, attribute: &Attribute) -> P<Expr> {
     let name = qualname_expr(cx, builder, attribute.name());
     let value = string_code_expr(cx, builder, attribute.value());
 

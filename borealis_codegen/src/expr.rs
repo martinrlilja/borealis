@@ -14,14 +14,16 @@ pub fn string_expr<'a, T: Into<String> + Clone>(builder: &AstBuilder, s: &'a T) 
 }
 
 pub fn string_code_expr<'a, T: Into<String> + Clone>(cx: &ExtCtxt,
-                                                 builder: &AstBuilder,
-                                                 s: &'a T)
-                                                 -> P<Expr> {
+                                                     builder: &AstBuilder,
+                                                     s: &'a T)
+                                                     -> P<Expr> {
     let s: String = s.clone().into();
 
     if s.starts_with("{{") && s.ends_with("}}") {
         let s = s[2..s.len() - 2].to_owned();
         cx.parse_expr(s)
+    } else if s.starts_with("{{") {
+        panic!("unmatched {{");
     } else {
         builder.expr().str(&s[..])
     }

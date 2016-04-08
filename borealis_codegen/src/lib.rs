@@ -83,7 +83,10 @@ fn get_file(cx: &ExtCtxt, item: &Item, annotation: &Annotation) -> Result<Rc<Str
         Ok(ref file) => Ok(file.src.as_ref().unwrap().clone()),
         Err(err) => {
             cx.span_err(item.span,
-                        &format!("`#[template_document(..)]` gave an error when opening {:?}: {:?}", filename, err));
+                        &format!("`#[template_document(..)]` gave an error when opening {:?}: \
+                                  {:?}",
+                                 filename,
+                                 err));
             return Err(());
         }
     }
@@ -131,7 +134,7 @@ fn build_document_template_item(cx: &ExtCtxt,
                     $document_expr
                 }
             })
-             .unwrap())
+           .unwrap())
 }
 
 #[plugin_registrar]

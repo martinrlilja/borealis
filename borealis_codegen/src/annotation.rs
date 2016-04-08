@@ -13,9 +13,7 @@ impl Annotation {
     pub fn new(item: &Item, attribute: &str) -> Annotation {
         let map = Annotation::items_to_map(item, attribute);
 
-        Annotation {
-            attributes: map,
-        }
+        Annotation { attributes: map }
     }
 
     fn items_to_map(item: &Item, attribute: &str) -> HashMap<InternedString, Lit> {
