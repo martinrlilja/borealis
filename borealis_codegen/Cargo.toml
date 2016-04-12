@@ -10,9 +10,9 @@ crate-type = ["dylib", "rlib"]
 
 [dependencies]
 borealis = { path = "../borealis", features = ["nightly"] }
-aster = "0.14"
-quasi = "0.8"
-quasi_macros = "0.8"
+aster = "0.15"
+quasi = "0.9"
+quasi_macros = "0.9"
 regex = "0.1"
 regex_macros = "0.1"
 string_cache = "0.2"
