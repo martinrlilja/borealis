@@ -1,7 +1,7 @@
 
 use std::io::{self, Write};
 
-use html5ever::driver::{parse_document, ParseOpts};
+use html5ever::driver::{parse_fragment, ParseOpts};
 use html5ever::tree_builder::TreeSink;
 use html5ever::tendril::TendrilSink;
 use html5ever::serialize::{Serializable, Serializer, TraversalScope};
@@ -32,16 +32,20 @@ impl Node {
     ///     let fragment = "<img src=\"test.jpg\">";
     ///     let node = Node::parse_str(fragment);
     ///
-    ///     assert_eq!(node,
+    ///     assert_eq!(node[0],
     ///                ElementNode::new("img",
     ///                                 vec![Attribute::new("src", "test.jpg")],
     ///                                 ElementType::new_normal())
     ///                    .into());
-    pub fn parse_str(string: &str) -> Node {
-        let parser = parse_document(dom::Dom::new(), ParseOpts::default()).from_utf8();
+    pub fn parse_str(string: &str) -> Vec<Node> {
+        let parser = parse_fragment(dom::Dom::new(),
+                                    ParseOpts::default(),
+                                    qualname!(html, "body"),
+                                    Vec::new())
+                         .from_utf8();
         let dom = parser.one(string.as_bytes());
 
-        (&dom.fragment()).into()
+        dom.fragment().iter().map(|e| e.into()).collect()
     }
 }
 
@@ -117,7 +121,7 @@ mod tests {
     #[test]
     fn test_parse_str() {
         let node = Node::parse_str(FRAGMENT);
-        assert_eq!(node,
+        assert_eq!(node[0],
                    ElementNode::new(qualname!(html, "div"),
                                     vec![Attribute::new("id", "test")],
                                     ElementType::Normal(vec![TextNode::new("Hello!").into()]))

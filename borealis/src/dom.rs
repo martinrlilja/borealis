@@ -87,11 +87,19 @@ impl Dom {
         &self.document
     }
 
-    pub fn fragment(&self) -> Handle {
+    pub fn fragment(&self) -> Vec<Handle> {
         fn element_children<'a>(node: &'a Ref<(Node, Option<WeakHandle>)>) -> &'a [Handle] {
             match **node {
                 (Node::Element(_, _, ref children), _) => &children,
                 _ => panic!("expected element, got: {:?}", node),
+            }
+        }
+
+        fn is_user_element(name: &QualName) -> bool {
+            match *name {
+                qualname!(html, "head") => false,
+                qualname!(html, "body") => false,
+                _ => true,
             }
         }
 
@@ -102,11 +110,17 @@ impl Dom {
 
         let mut children = Vec::new();
         for child in element_children(&html.borrow()).iter() {
-            children.extend(element_children(&child.borrow()).iter().cloned());
+            match *child.borrow() {
+                (Node::Element(ref name, _, _), _) => {
+                    if is_user_element(name) {
+                        children.push(child.clone());
+                    }
+                }
+                _ => panic!("expected element, got: {:?}", child),
+            }
         }
 
-        assert_eq!(children.len(), 1);
-        children[0].clone()
+        children
     }
 
     fn node_or_text_as_handle(child: &NodeOrText<Handle>) -> Handle {
@@ -309,16 +323,11 @@ mod tests {
         dom.append(document, NodeOrText::AppendNode(html.clone()));
         dom.append(html.clone(), NodeOrText::AppendNode(head.clone()));
         dom.append(html.clone(), NodeOrText::AppendNode(body.clone()));
-
-        dom.append(head.clone(), NodeOrText::AppendNode(element.clone()));
-
-        let fragment = dom.fragment();
-        assert_eq!(fragment, element);
-
-        dom.reparent_children(head.clone(), body.clone());
+        dom.append(html.clone(), NodeOrText::AppendNode(element.clone()));
 
         let fragment = dom.fragment();
-        assert_eq!(fragment, element);
+        assert!(fragment.len() == 1);
+        assert_eq!(fragment[0], element);
     }
 
     #[test]
