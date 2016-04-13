@@ -17,6 +17,8 @@
             <h2>Test template says: <span>{{ self.value }}</span></h2>
 
             <p>{{ (1..5).map(|v| format!("{}, ", v)) }}</p>
+
+            {{ vec![self.fragment] }}
         </article>
     </body>
 </html>

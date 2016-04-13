@@ -88,7 +88,8 @@ pub fn text_node_expression(cx: &ExtCtxt, builder: &AstBuilder, text: &TextNode)
         } else {
             let expr = cx.parse_expr(string[start + 2..end - 2].to_owned());
             exprs.push(quote_expr!(cx, {
-                use ::borealis::{IntoNode, IntoNodes};
+                #[allow(unused_imports)]
+                use ::borealis::{IntoNode, IntoNodes, IntoNodesIter};
                 $expr.into_nodes()
             }));
         }

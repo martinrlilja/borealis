@@ -2,31 +2,37 @@
 use super::html::{Node, TextNode};
 
 pub trait IntoNode : Sized {
-    fn into_node(self) -> Node;
-
-    fn into_nodes(self) -> Vec<Node> {
-        vec![self.into_node()]
-    }
+    fn into_node(self) -> Option<Node>;
 }
 
 pub trait IntoNodes {
     fn into_nodes(self) -> Vec<Node>;
 }
 
-impl<I: IntoNode, T: IntoIterator<Item = I>> IntoNodes for T {
+impl<T: IntoNode> IntoNodes for T {
     fn into_nodes(self) -> Vec<Node> {
-        self.into_iter().map(|n| n.into_node()).collect()
+        self.into_node().into_iter().collect()
+    }
+}
+
+pub trait IntoNodesIter {
+    fn into_nodes(self) -> Vec<Node>;
+}
+
+impl<I: IntoNodes, T: IntoIterator<Item = I>> IntoNodesIter for T {
+    fn into_nodes(self) -> Vec<Node> {
+        self.into_iter().flat_map(|n| n.into_nodes()).collect()
     }
 }
 
 impl IntoNode for String {
-    fn into_node(self) -> Node {
-        TextNode::new(self).into()
+    fn into_node(self) -> Option<Node> {
+        Some(TextNode::new(self).into())
     }
 }
 
 impl<'a> IntoNode for &'a str {
-    fn into_node(self) -> Node {
-        TextNode::new(self).into()
+    fn into_node(self) -> Option<Node> {
+        Some(TextNode::new(self).into())
     }
 }

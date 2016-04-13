@@ -3,20 +3,15 @@ use syntax::attr;
 use syntax::ast::{Item, Lit, MetaItemKind};
 use syntax::parse::token::InternedString;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 pub struct Annotation {
-    attributes: HashMap<InternedString, Lit>,
+    values: HashMap<InternedString, Lit>,
+    flags: HashSet<InternedString>
 }
 
 impl Annotation {
     pub fn new(item: &Item, attribute: &str) -> Annotation {
-        let map = Annotation::items_to_map(item, attribute);
-
-        Annotation { attributes: map }
-    }
-
-    fn items_to_map(item: &Item, attribute: &str) -> HashMap<InternedString, Lit> {
         let items = item.attrs().iter().filter_map(|a| {
             match a.node.value.node {
                 MetaItemKind::List(ref name, ref items) if name == &attribute => {
@@ -27,23 +22,34 @@ impl Annotation {
             }
         });
 
-        let mut map = HashMap::new();
+        let mut values = HashMap::new();
+        let mut flags = HashSet::new();
 
         for attr_items in items {
             for attr_item in attr_items {
                 match attr_item.node {
                     MetaItemKind::NameValue(ref name, ref value) => {
-                        map.insert(name.clone(), value.clone());
+                        values.insert(name.clone(), value.clone());
+                    }
+                    MetaItemKind::Word(ref name) => {
+                        flags.insert(name.clone());
                     }
                     _ => continue,
                 }
             }
         }
 
-        map
+        Annotation {
+            values: values,
+            flags: flags,
+        }
     }
 
-    pub fn find(&self, name: &'static str) -> Option<&Lit> {
-        self.attributes.get(&InternedString::new(name))
+    pub fn find_value(&self, name: &'static str) -> Option<&Lit> {
+        self.values.get(&InternedString::new(name))
+    }
+
+    pub fn has_flag(&self, name: &'static str) -> bool {
+        self.flags.contains(&InternedString::new(name))
     }
 }

@@ -34,9 +34,9 @@ impl Node {
     ///
     ///     assert_eq!(nodes,
     ///                vec![ElementNode::new("img",
-    ///                                 vec![Attribute::new("src", "test.jpg")],
-    ///                                 ElementType::new_normal())
-    ///                    .into()]);
+    ///                                      vec![Attribute::new("src", "test.jpg")],
+    ///                                      ElementType::new_normal())
+    ///                         .into()]);
     pub fn parse_str(string: &str) -> Vec<Node> {
         let parser = parse_fragment(dom::Dom::new(),
                                     ParseOpts::default(),
@@ -44,7 +44,6 @@ impl Node {
                                     Vec::new())
                          .from_utf8();
         let dom = parser.one(string.as_bytes());
-
         dom.fragment().iter().map(|e| e.into()).collect()
     }
 }

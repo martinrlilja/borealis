@@ -11,7 +11,7 @@ extern crate string_cache;
 #[macro_use]
 extern crate syntax;
 
-use borealis::html::Document;
+use borealis::html::{Document, Node};
 
 use std::rc::Rc;
 use std::path::Path;
@@ -25,35 +25,14 @@ use syntax::ptr::P;
 use rustc_plugin::Registry;
 
 use annotation::Annotation;
-use html_expr::document_expression;
+use html_expr::{document_expression, node_expression};
 
 mod annotation;
 mod expr;
 mod html_expr;
 
-fn expand_derive_document_template(cx: &mut ExtCtxt,
-                                   span: Span,
-                                   meta_item: &MetaItem,
-                                   annotatable: &Annotatable,
-                                   push: &mut FnMut(Annotatable)) {
-    let item = match *annotatable {
-        Annotatable::Item(ref item) => item,
-        _ => {
-            cx.span_err(meta_item.span,
-                        "`#[template_document(..)]` may only be applied to structs");
-            return;
-        }
-    };
-
-    let builder = aster::AstBuilder::new().span(span);
-
-    if let Ok(item) = build_document_template_item(&cx, &builder, &item) {
-        push(Annotatable::Item(item));
-    }
-}
-
 fn get_file_argument<'a>(annotation: &'a Annotation) -> Option<&'a InternedString> {
-    match annotation.find("file") {
+    match annotation.find_value("file") {
         Some(lit) => {
             match lit.node {
                 LitKind::Str(ref s, _) => Some(s),
@@ -80,7 +59,15 @@ fn get_file(cx: &ExtCtxt, item: &Item, annotation: &Annotation) -> Result<Rc<Str
     let filename = filename.parent().unwrap().join(Path::new(&**file));
 
     match cx.codemap().load_file(&filename) {
-        Ok(ref file) => Ok(file.src.as_ref().unwrap().clone()),
+        Ok(ref file) => {
+            let s = file.src.as_ref().unwrap().clone();
+
+            if annotation.has_flag("trim") {
+                Ok(Rc::new(s.trim().into()))
+            } else {
+                Ok(s)
+            }
+        }
         Err(err) => {
             cx.span_err(item.span,
                         &format!("`#[template_document(..)]` gave an error when opening {:?}: \
@@ -89,6 +76,27 @@ fn get_file(cx: &ExtCtxt, item: &Item, annotation: &Annotation) -> Result<Rc<Str
                                  err));
             return Err(());
         }
+    }
+}
+
+fn expand_derive_document_template(cx: &mut ExtCtxt,
+                                   span: Span,
+                                   meta_item: &MetaItem,
+                                   annotatable: &Annotatable,
+                                   push: &mut FnMut(Annotatable)) {
+    let item = match *annotatable {
+        Annotatable::Item(ref item) => item,
+        _ => {
+            cx.span_err(meta_item.span,
+                        "`#[template_document(..)]` may only be applied to structs");
+            return;
+        }
+    };
+
+    let builder = aster::AstBuilder::new().span(span);
+
+    if let Ok(item) = build_document_template_item(&cx, &builder, &item) {
+        push(Annotatable::Item(item));
     }
 }
 
@@ -137,10 +145,89 @@ fn build_document_template_item(cx: &ExtCtxt,
            .unwrap())
 }
 
+fn expand_derive_fragment_template(cx: &mut ExtCtxt,
+                                   span: Span,
+                                   meta_item: &MetaItem,
+                                   annotatable: &Annotatable,
+                                   push: &mut FnMut(Annotatable)) {
+    let item = match *annotatable {
+        Annotatable::Item(ref item) => item,
+        _ => {
+            cx.span_err(meta_item.span,
+                        "`#[template_fragment(..)]` may only be applied to structs");
+            return;
+        }
+    };
+
+    let builder = aster::AstBuilder::new().span(span);
+
+    if let Ok(item) = build_fragment_template_item(&cx, &builder, &item) {
+        push(Annotatable::Item(item));
+    }
+}
+
+fn build_fragment_template_item(cx: &ExtCtxt,
+                                builder: &aster::AstBuilder,
+                                item: &Item)
+                                -> Result<P<Item>, ()> {
+    let annotation = Annotation::new(item, "template_fragment");
+
+    let file = try!(get_file(cx, item, &annotation));
+
+    let fragment = Node::parse_str(&file);
+    let generics = match item.node {
+        ItemKind::Struct(_, ref generics) => generics,
+        _ => {
+            cx.span_err(item.span,
+                        "`#[template_fragment(..)]` may only be applied to structs");
+            return Err(());
+        }
+    };
+
+    let impl_generics = builder.from_generics(generics.clone())
+                               .add_ty_param_bound(builder.path()
+                                                          .global()
+                                                          .ids(&["borealis", "IntoNodes"])
+                                                          .build())
+                               .build();
+    let ty = builder.ty()
+                    .path()
+                    .segment(item.ident)
+                    .with_generics(impl_generics.clone())
+                    .build()
+                    .build();
+
+    let where_clause = &impl_generics.where_clause;
+
+    let node_exprs = fragment.iter().map(|e| node_expression(cx, builder, e));
+    let node_exprs = builder.expr().vec().with_exprs(node_exprs).build();
+
+    Ok(quote_item!(cx,
+            impl $impl_generics ::borealis::IntoNodes
+                for $ty $where_clause {
+                fn into_nodes(self) -> Vec<::borealis::html::Node> {
+                    let exprs: Vec<Vec<::borealis::html::Node>> = $node_exprs;
+                    let mut out = Vec::with_capacity(exprs.len());
+
+                    for expr in exprs {
+                        out.extend(expr);
+                    }
+
+                    out
+                }
+            })
+           .unwrap())
+}
+
 #[plugin_registrar]
 pub fn plugin_registrar(reg: &mut Registry) {
     reg.register_syntax_extension(
         token::intern("template_document"),
         SyntaxExtension::MultiDecorator(
             Box::new(expand_derive_document_template)));
+
+    reg.register_syntax_extension(
+        token::intern("template_fragment"),
+        SyntaxExtension::MultiDecorator(
+            Box::new(expand_derive_fragment_template)));
 }
