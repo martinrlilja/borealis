@@ -1,5 +1,9 @@
 
-use super::html::{Node, TextNode};
+use super::html::{Document, Node, TextNode};
+
+pub trait IntoDocument {
+    fn into_document(self) -> Document;
+}
 
 pub trait IntoNode : Sized {
     fn into_node(self) -> Option<Node>;

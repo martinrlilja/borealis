@@ -121,7 +121,7 @@ fn build_document_template_item(cx: &ExtCtxt,
     let impl_generics = builder.from_generics(generics.clone())
                                .add_ty_param_bound(builder.path()
                                                           .global()
-                                                          .ids(&["std", "convert", "Into"])
+                                                          .ids(&["borealis", "IntoDocument"])
                                                           .build())
                                .build();
     let ty = builder.ty()
@@ -136,9 +136,9 @@ fn build_document_template_item(cx: &ExtCtxt,
     let document_expr = document_expression(cx, builder, &document);
 
     Ok(quote_item!(cx,
-            impl $impl_generics ::std::convert::Into<::borealis::html::Document>
+            impl $impl_generics ::borealis::IntoDocument
                 for $ty $where_clause {
-                fn into(self) -> ::borealis::html::Document {
+                fn into_document(self) -> ::borealis::html::Document {
                     $document_expr
                 }
             })

@@ -8,6 +8,7 @@ use std::fs::File;
 use std::path::Path;
 
 use borealis::html::Document;
+use borealis::IntoDocument;
 
 #[template_document(file="test_template.html")]
 struct TestTemplate {
@@ -23,7 +24,7 @@ fn test_test_template() {
             value: 10,
         }
     };
-    let document_a = serialize(template.into());
+    let document_a = serialize(template.into_document());
     let document_b = serialize(read_document("tests/test_template_expected.html"));
 
     assert_eq!(document_a, document_b);

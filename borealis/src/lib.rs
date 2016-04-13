@@ -7,7 +7,7 @@ extern crate html5ever;
 extern crate string_cache as sc;
 
 pub use html5ever::tendril;
-pub use template::{IntoNode, IntoNodes, IntoNodesIter};
+pub use template::{IntoDocument, IntoNode, IntoNodes, IntoNodesIter};
 
 mod dom;
 pub mod html;
