@@ -116,6 +116,8 @@ impl Dom {
                         children.push(child.clone());
                     }
                 }
+                (Node::Comment(..), _) => children.push(child.clone()),
+                (Node::Text(..), _) => children.push(child.clone()),
                 _ => panic!("expected element, got: {:?}", child),
             }
         }

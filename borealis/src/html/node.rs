@@ -29,14 +29,14 @@ impl Node {
     ///
     ///     use borealis::html::{Attribute, Node, ElementNode, ElementType};
     ///
-    ///     let fragment = "<img src=\"test.jpg\">";
-    ///     let node = Node::parse_str(fragment);
+    ///     let fragment = r#"<img src="test.jpg">"#;
+    ///     let nodes = Node::parse_str(fragment);
     ///
-    ///     assert_eq!(node[0],
-    ///                ElementNode::new("img",
+    ///     assert_eq!(nodes,
+    ///                vec![ElementNode::new("img",
     ///                                 vec![Attribute::new("src", "test.jpg")],
     ///                                 ElementType::new_normal())
-    ///                    .into());
+    ///                    .into()]);
     pub fn parse_str(string: &str) -> Vec<Node> {
         let parser = parse_fragment(dom::Dom::new(),
                                     ParseOpts::default(),
@@ -112,19 +112,28 @@ impl Serializable for Node {
 mod tests {
     use super::*;
 
-    use html::{Attribute, ElementNode, ElementType, TextNode};
+    use html::{Attribute, ElementNode, TextNode};
 
     #[cfg_attr(feature = "nightly", rustfmt_skip)]
-    const FRAGMENT: &'static str =
-        "<div id=\"test\">Hello!</div>";
+    const FRAGMENT_1: &'static str =
+        r#"<div id="test">Hello!</div>"#;
+
+    #[cfg_attr(feature = "nightly", rustfmt_skip)]
+    const FRAGMENT_2: &'static str =
+        "<br>test!";
 
     #[test]
     fn test_parse_str() {
-        let node = Node::parse_str(FRAGMENT);
-        assert_eq!(node[0],
-                   ElementNode::new(qualname!(html, "div"),
-                                    vec![Attribute::new("id", "test")],
-                                    ElementType::Normal(vec![TextNode::new("Hello!").into()]))
-                       .into());
+        let nodes = Node::parse_str(FRAGMENT_1);
+        assert_eq!(nodes,
+                   vec![ElementNode::new_normal(qualname!(html, "div"),
+                                                vec![Attribute::new("id", "test")],
+                                                vec![TextNode::new("Hello!").into()])
+                            .into()]);
+
+        let nodes = Node::parse_str(FRAGMENT_2);
+        assert_eq!(nodes,
+                   vec![ElementNode::new_normal(qualname!(html, "br"), vec![], vec![]).into(),
+                        TextNode::new("test!").into()]);
     }
 }
