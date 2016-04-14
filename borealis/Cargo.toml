@@ -4,6 +4,8 @@ version = "0.1.0"
 authors = ["Martin Risell Lilja <martin.risell.lilja@gmail.com>"]
 license = "MIT/Apache-2.0"
 repository = "https://github.com/martinrlilja/borealis"
+description = "HTML5 template engine"
+exclude = ["*.rs.bk"]
 
 [features]
 nightly = []
