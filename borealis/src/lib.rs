@@ -11,6 +11,7 @@ pub use template::{IntoDocument, IntoNode, IntoNodes, IntoNodesIter};
 
 mod dom;
 pub mod html;
+pub mod serialize;
 mod template;
 
 pub mod string_cache {
