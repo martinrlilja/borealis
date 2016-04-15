@@ -58,6 +58,7 @@ pub fn serialize<'w, W, T>(writer: &mut W, document: &T) -> Result<()>
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(feature = "nightly")]
     use test::Bencher;
     use std::io::Write;
 
@@ -96,10 +97,7 @@ mod tests {
                     let mut head = html.element_normal(qualname!(html, "head"), EmptyAttrs::new());
                     {
                         let mut title = head.element_normal(qualname!(html, "title"), EmptyAttrs::new());
-                        title.text("test");
-                    }
-                }
-                {
+                        title.text("test"); } } {
                     let mut body = html.element_normal(qualname!(html, "body"), EmptyAttrs::new());
                     body.text("more tests!");
                 }
@@ -146,6 +144,7 @@ mod tests {
                     html><html><body><p>0</p><p>1</p><p>2</p><p>3</p><p>4</p></body></html>");
     }
 
+    #[cfg(feature = "nightly")]
     #[bench]
     fn bench_serialize_document(b: &mut Bencher) {
         struct Doc;
