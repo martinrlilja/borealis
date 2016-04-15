@@ -82,7 +82,7 @@ mod tests {
             }
         }
 
-        assert_eq!(ser(&Doc), "<!DOCTYPE html>\n<html></html>");
+        assert_eq!(ser(&Doc), "<!DOCTYPE html><html></html>");
     }
 
     #[test]
@@ -107,7 +107,7 @@ mod tests {
         }
 
         assert_eq!(ser(&Doc),
-                   "<!DOCTYPE html>\n<html><head><title>test</title></head><body>more \
+                   "<!DOCTYPE html><html><head><title>test</title></head><body>more \
                     tests!</body></html>");
     }
 
@@ -143,7 +143,7 @@ mod tests {
 
         assert_eq!(ser(&Doc),
                    "<!DOCTYPE \
-                    html>\n<html><body><p>0</p><p>1</p><p>2</p><p>3</p><p>4</p></body></html>");
+                    html><html><body><p>0</p><p>1</p><p>2</p><p>3</p><p>4</p></body></html>");
     }
 
     #[bench]
