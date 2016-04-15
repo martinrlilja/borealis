@@ -1,7 +1,7 @@
 
 use std::io::Write;
 
-use super::Serializer;
+use super::serializer::Serializer;
 
 use string_cache::QualName;
 
@@ -20,10 +20,10 @@ impl<'a, 'b: 'a, 'c: 'b, 'd: 'c, 'w: 'd, W: Write> NodeSerializer<'c, 'd, 'w, W>
     }
 
     pub fn element_normal<'i, I>(&'a mut self,
-                                 name: &QualName,
+                                 name: QualName,
                                  attrs: I)
                                  -> NodeSerializer<'a, 'd, 'w, W>
-        where I: IntoIterator<Item = (&'i QualName, &'i str)>
+        where I: Iterator<Item = (&'i QualName, &'i str)>
     {
         element_normal::<'a, 'd, 'i, 'w, I, W>(self.serializer, name, attrs)
     }
@@ -31,20 +31,20 @@ impl<'a, 'b: 'a, 'c: 'b, 'd: 'c, 'w: 'd, W: Write> NodeSerializer<'c, 'd, 'w, W>
 
 impl<'a, 'b, 'w, W: Write> Drop for NodeSerializer<'a, 'b, 'w, W> {
     fn drop(&mut self) {
-        self.serializer.end_elem(&self.name);
+        self.serializer.end_elem(self.name.clone());
     }
 }
 
 pub fn element_normal<'a, 'b: 'a, 'i, 'w: 'b, I, W>(parent: &'a mut Serializer<'b, 'w, W>,
-                                                    name: &QualName,
+                                                    name: QualName,
                                                     attrs: I)
                                                     -> NodeSerializer<'a, 'b, 'w, W>
-    where I: IntoIterator<Item = (&'i QualName, &'i str)>,
+    where I: Iterator<Item = (&'i QualName, &'i str)>,
           W: 'w + Write
 {
-    parent.start_elem(name, attrs.into_iter());
+    parent.start_elem(name.clone(), attrs.into_iter());
     NodeSerializer {
-        name: name.clone(),
+        name: name,
         serializer: parent,
     }
 }

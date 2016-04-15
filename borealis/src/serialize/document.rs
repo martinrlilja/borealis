@@ -1,7 +1,7 @@
 
 use std::io::Write;
 
-use super::Serializer;
+use super::serializer::Serializer;
 
 use string_cache::QualName;
 
@@ -18,8 +18,8 @@ impl<'a, 'b, 'w, W: Write> DocumentSerializer<'a, 'b, 'w, W> {
         DocumentDoctypeSerializer { internal: self }
     }
 
-    pub fn node<'i, I>(self, name: &QualName, attrs: I) -> NodeSerializer<'a, 'b, 'w, W>
-        where I: IntoIterator<Item = (&'i QualName, &'i str)>
+    pub fn node<'i, I>(self, name: QualName, attrs: I) -> NodeSerializer<'a, 'b, 'w, W>
+        where I: Iterator<Item = (&'i QualName, &'i str)>
     {
         element_normal(self.serializer, name, attrs)
     }
@@ -35,8 +35,8 @@ pub struct DocumentDoctypeSerializer<'a, 'b: 'a, 'w: 'b, W: 'w + Write> {
 }
 
 impl<'a, 'b, 'w, W: Write> DocumentDoctypeSerializer<'a, 'b, 'w, W> {
-    pub fn node<'i, I>(self, name: &QualName, attrs: I) -> NodeSerializer<'a, 'b, 'w, W>
-        where I: IntoIterator<Item = (&'i QualName, &'i str)>
+    pub fn node<'i, I>(self, name: QualName, attrs: I) -> NodeSerializer<'a, 'b, 'w, W>
+        where I: Iterator<Item = (&'i QualName, &'i str)>
     {
         self.internal.node(name, attrs)
     }

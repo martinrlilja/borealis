@@ -5,19 +5,17 @@ use std::collections::HashSet;
 use std::ops::Deref;
 use std::rc::{Rc, Weak};
 
-use html5ever;
+use html5ever::Attribute;
 use html5ever::tree_builder::{TreeSink, QuirksMode, NodeOrText};
 use html5ever::tendril::StrTendril;
 
 use string_cache::QualName;
 
-use html::{Doctype, Attribute};
-
 #[derive(Clone, Debug, PartialEq)]
 pub enum Node {
     Comment(StrTendril),
-    Document(Option<Doctype>, Option<Handle>),
-    Element(QualName, Vec<Attribute>, Vec<Handle>),
+    Document(Option<StrTendril>, Option<Handle>),
+    Element(QualName, Vec<(QualName, StrTendril)>, Vec<Handle>),
     Text(StrTendril),
 }
 
@@ -168,11 +166,8 @@ impl TreeSink for Dom {
         }
     }
 
-    fn create_element(&mut self, name: QualName, attributes: Vec<html5ever::Attribute>) -> Handle {
-        let attributes = attributes.iter()
-                                   .map(|a| a.clone().into())
-                                   .collect();
-
+    fn create_element(&mut self, name: QualName, attributes: Vec<Attribute>) -> Handle {
+        let attributes = attributes.into_iter().map(|a| (a.name, a.value)).collect();
         Node::Element(name, attributes, Vec::new()).into()
     }
 
@@ -226,22 +221,22 @@ impl TreeSink for Dom {
 
     fn append_doctype_to_document(&mut self,
                                   name: StrTendril,
-                                  public_id: StrTendril,
-                                  system_id: StrTendril) {
+                                  _: StrTendril,
+                                  _: StrTendril) {
         match *self.document.borrow_mut() {
             (Node::Document(ref mut doctype, _), _) => {
-                *doctype = Some(Doctype::new(name, public_id, system_id));
+                *doctype = Some(name);
             }
             _ => panic!("expected document"),
         }
     }
 
-    fn add_attrs_if_missing(&mut self, target: Handle, attrs: Vec<html5ever::Attribute>) {
-        fn join_attributes(old_attrs: &mut Vec<Attribute>, new_attrs: Vec<html5ever::Attribute>) {
-            let names = old_attrs.iter().map(|a| a.name().clone()).collect::<HashSet<_>>();
+    fn add_attrs_if_missing(&mut self, target: Handle, attrs: Vec<Attribute>) {
+        fn join_attributes(old_attrs: &mut Vec<(QualName, StrTendril)>, new_attrs: Vec<Attribute>) {
+            let names = old_attrs.iter().map(|a| a.0.clone()).collect::<HashSet<_>>();
             let missing = new_attrs.into_iter().filter(|a| !names.contains(&a.name));
 
-            old_attrs.extend(missing.map(|a| a.clone().into()));
+            old_attrs.extend(missing.map(|a| (a.name, a.value)));
         }
 
         match *target.borrow_mut() {
@@ -306,12 +301,16 @@ mod tests {
     #[cfg(feature = "nightly")]
     use test::Bencher;
 
+    use html5ever::Attribute;
     use html5ever::tree_builder::{TreeSink, NodeOrText};
     use html5ever::tendril::StrTendril;
 
     use string_cache::QualName;
 
-    use html::Attribute;
+    fn convert_attr(a: &(QualName, StrTendril)) -> Attribute {
+        Attribute { name: a.0.clone(), value: a.1.clone() }
+    }
+
 
     #[test]
     fn test_fragment() {
@@ -368,9 +367,10 @@ mod tests {
     }
 
     fn do_test_create_element(dom: &mut Dom, name: QualName) {
-        let attrs = &[Attribute::new("name", "test"), Attribute::new("id", "yup")];
+        let attrs = &[(qualname!("", "name"), "test".into()),
+                      (qualname!("", "id"), "yup".into())];
         let element = dom.create_element(name.clone(),
-                                         attrs.iter().map(|a| a.clone().into()).collect());
+                                         attrs.iter().map(convert_attr).collect());
 
         match *element.borrow() {
             (Node::Element(ref elem_name, ref elem_attrs, ref elem_children),
@@ -506,10 +506,8 @@ mod tests {
 
         match *document.borrow() {
             (Node::Document(ref doctype, _), _) => {
-                let doctype = doctype.clone().unwrap();
-                assert_eq!(*doctype.name(), name);
-                assert_eq!(*doctype.public_id(), public_id);
-                assert_eq!(*doctype.system_id(), system_id);
+                let doctype = doctype.as_ref().unwrap();
+                assert_eq!(*doctype, name);
             }
             _ => panic!("document is not a document: {:?}", document),
         };
@@ -518,12 +516,12 @@ mod tests {
     #[test]
     fn test_add_attrs_if_missing() {
         let mut dom = Dom::new();
-        let attrs = &[Attribute::new("name", "test"), Attribute::new("id", "yup")];
+        let attrs = &[(qualname!("", "name"), "test".into()), (qualname!("", "id"), "yup".into())];
 
         let html = dom.create_element(qualname!(html, "html"),
-                                      attrs.iter().take(1).map(|a| a.clone().into()).collect());
+                                      attrs.iter().take(1).map(convert_attr).collect());
         dom.add_attrs_if_missing(html.clone(),
-                                 attrs.iter().map(|a| a.clone().into()).collect());
+                                 attrs.iter().map(convert_attr).collect());
 
         match *html.borrow() {
             (Node::Element(_, ref elem_attrs, _), _) => {
