@@ -2,14 +2,62 @@
 use std::borrow::Cow;
 use std::cell::{Ref, RefCell};
 use std::collections::HashSet;
+use std::io::Write;
 use std::ops::Deref;
 use std::rc::{Rc, Weak};
 
+use html5ever::{ParseOpts, parse_document, parse_fragment};
 use html5ever::Attribute;
 use html5ever::tree_builder::{TreeSink, QuirksMode, NodeOrText};
-use html5ever::tendril::StrTendril;
+use html5ever::tendril::{StrTendril, TendrilSink};
 
 use string_cache::QualName;
+
+use serialize::{SerializeDocument, SerializeNode, DocumentSerializer, NodeSerializer};
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Document {
+    node: Handle,
+}
+
+impl Document {
+    pub fn parse_str(s: &str) -> Document {
+        let parser = parse_document(Dom::new(), ParseOpts::default()).from_utf8();
+        let dom = parser.one(s.as_bytes());
+        Document { node: dom.document() }
+    }
+}
+
+impl SerializeDocument for Document {
+    fn serialize_document<W: Write>(&self, s: DocumentSerializer<W>) {
+        self.node.serialize_document(s);
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Fragment {
+    nodes: Vec<Handle>,
+}
+
+impl Fragment {
+    pub fn parse_str(s: &str) -> Fragment {
+        let parser = parse_fragment(Dom::new(),
+                                    ParseOpts::default(),
+                                    qualname!(html, "body"),
+                                    Vec::new())
+                         .from_utf8();
+        let dom = parser.one(s.as_bytes());
+        Fragment { nodes: dom.fragment() }
+    }
+}
+
+impl SerializeNode for Fragment {
+    fn serialize_node<W: Write>(self, s: &mut NodeSerializer<W>) {
+        for child in self.nodes.iter() {
+            child.serialize_node(s);
+        }
+    }
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Node {
@@ -48,6 +96,44 @@ impl PartialEq for Handle {
     }
 }
 
+impl SerializeDocument for Handle {
+    fn serialize_document<W: Write>(&self, s: DocumentSerializer<W>) {
+        match *self.borrow() {
+            (Node::Document(ref doctype, ref node), _) => {
+                let mut s = match *doctype {
+                    Some(ref name) => s.doctype(&name).node(),
+                    None => s.node(),
+                };
+
+                if let Some(ref node) = *node {
+                    node.serialize_node(&mut s)
+                }
+            }
+            _ => panic!("expected document, got: {:?}", self),
+        }
+    }
+}
+
+impl<'a> SerializeNode for &'a Handle {
+    fn serialize_node<W: Write>(self, s: &mut NodeSerializer<W>) {
+        match *self.borrow() {
+            (Node::Comment(ref comment), _) => s.comment(&comment),
+            (Node::Element(ref name, ref attributes, ref children), _) => {
+                // Fix me: if element is a template, it is going to contain a
+                // document, which means that this will fail.
+                let mut node = s.element_normal(name.clone(),
+                                                attributes.iter().map(|a| (&a.0, &a.1[..])));
+
+                for child in children.iter() {
+                    child.serialize_node(&mut node);
+                }
+            }
+            (Node::Text(ref text), _) => s.text(&text),
+            _ => panic!("expected comment, element or text, got: {:?}", self),
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct WeakHandle(Weak<RefCell<(Node, Option<WeakHandle>)>>);
 
@@ -81,8 +167,8 @@ impl Dom {
         }
     }
 
-    pub fn document(&self) -> &Handle {
-        &self.document
+    pub fn document(&self) -> Handle {
+        self.document.clone()
     }
 
     pub fn fragment(&self) -> Vec<Handle> {
@@ -219,10 +305,7 @@ impl TreeSink for Dom {
         Ok(())
     }
 
-    fn append_doctype_to_document(&mut self,
-                                  name: StrTendril,
-                                  _: StrTendril,
-                                  _: StrTendril) {
+    fn append_doctype_to_document(&mut self, name: StrTendril, _: StrTendril, _: StrTendril) {
         match *self.document.borrow_mut() {
             (Node::Document(ref mut doctype, _), _) => {
                 *doctype = Some(name);
@@ -232,7 +315,8 @@ impl TreeSink for Dom {
     }
 
     fn add_attrs_if_missing(&mut self, target: Handle, attrs: Vec<Attribute>) {
-        fn join_attributes(old_attrs: &mut Vec<(QualName, StrTendril)>, new_attrs: Vec<Attribute>) {
+        fn join_attributes(old_attrs: &mut Vec<(QualName, StrTendril)>,
+                           new_attrs: Vec<Attribute>) {
             let names = old_attrs.iter().map(|a| a.0.clone()).collect::<HashSet<_>>();
             let missing = new_attrs.into_iter().filter(|a| !names.contains(&a.name));
 
@@ -308,7 +392,10 @@ mod tests {
     use string_cache::QualName;
 
     fn convert_attr(a: &(QualName, StrTendril)) -> Attribute {
-        Attribute { name: a.0.clone(), value: a.1.clone() }
+        Attribute {
+            name: a.0.clone(),
+            value: a.1.clone(),
+        }
     }
 
 
@@ -367,10 +454,8 @@ mod tests {
     }
 
     fn do_test_create_element(dom: &mut Dom, name: QualName) {
-        let attrs = &[(qualname!("", "name"), "test".into()),
-                      (qualname!("", "id"), "yup".into())];
-        let element = dom.create_element(name.clone(),
-                                         attrs.iter().map(convert_attr).collect());
+        let attrs = &[(qualname!("", "name"), "test".into()), (qualname!("", "id"), "yup".into())];
+        let element = dom.create_element(name.clone(), attrs.iter().map(convert_attr).collect());
 
         match *element.borrow() {
             (Node::Element(ref elem_name, ref elem_attrs, ref elem_children),
@@ -520,8 +605,7 @@ mod tests {
 
         let html = dom.create_element(qualname!(html, "html"),
                                       attrs.iter().take(1).map(convert_attr).collect());
-        dom.add_attrs_if_missing(html.clone(),
-                                 attrs.iter().map(convert_attr).collect());
+        dom.add_attrs_if_missing(html.clone(), attrs.iter().map(convert_attr).collect());
 
         match *html.borrow() {
             (Node::Element(_, ref elem_attrs, _), _) => {

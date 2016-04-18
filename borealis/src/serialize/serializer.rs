@@ -34,11 +34,11 @@ impl<'a, 'w, W: Write> Serializer<'a, 'w, W> {
     pub fn start_elem<'i, T>(&mut self, name: QualName, attrs: T)
         where T: Iterator<Item = (&'i QualName, &'i str)>
     {
-        self.do_cond(|s| s.inner.start_elem(name, attrs))
+        self.do_cond(|s| s.inner.start_elem(name.into(), attrs))
     }
 
     pub fn end_elem(&mut self, name: QualName) {
-        self.do_cond(|s| s.inner.end_elem(name));
+        self.do_cond(|s| s.inner.end_elem(name.into()));
     }
 
     pub fn write_text(&mut self, text: &str) {

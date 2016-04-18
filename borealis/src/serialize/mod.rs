@@ -22,9 +22,25 @@ pub trait SerializeNode {
     fn serialize_node<W: Write>(self, &mut NodeSerializer<W>);
 }
 
-impl<I: SerializeNode, T: Iterator<Item = I>> SerializeNode for T {
+impl SerializeNode for String {
     fn serialize_node<W: Write>(self, s: &mut NodeSerializer<W>) {
-        for node in self.into_iter() {
+        s.text(&self);
+    }
+}
+
+impl<'a> SerializeNode for &'a str {
+    fn serialize_node<W: Write>(self, s: &mut NodeSerializer<W>) {
+        s.text(self);
+    }
+}
+
+pub trait SerializeNodes {
+    fn serialize_node<W: Write>(self, &mut NodeSerializer<W>);
+}
+
+impl<I: SerializeNode, T: Iterator<Item = I>> SerializeNodes for T {
+    fn serialize_node<W: Write>(self, s: &mut NodeSerializer<W>) {
+        for node in self {
             node.serialize_node(s);
         }
     }
@@ -79,7 +95,8 @@ mod tests {
 
         impl SerializeDocument for Doc {
             fn serialize_document<W: Write>(&self, s: DocumentSerializer<W>) {
-                s.doctype("html").node(qualname!(html, "html"), EmptyAttrs::new());
+                let mut s = s.doctype("html").node();
+                s.element_normal(qualname!(html, "html"), EmptyAttrs::new());
             }
         }
 
@@ -92,12 +109,17 @@ mod tests {
 
         impl SerializeDocument for Doc {
             fn serialize_document<W: Write>(&self, s: DocumentSerializer<W>) {
-                let mut html = s.doctype("html").node(qualname!(html, "html"), EmptyAttrs::new());
+                let mut s = s.doctype("html").node();
+                let mut html = s.element_normal(qualname!(html, "html"), EmptyAttrs::new());
                 {
                     let mut head = html.element_normal(qualname!(html, "head"), EmptyAttrs::new());
                     {
-                        let mut title = head.element_normal(qualname!(html, "title"), EmptyAttrs::new());
-                        title.text("test"); } } {
+                        let mut title = head.element_normal(qualname!(html, "title"),
+                                                            EmptyAttrs::new());
+                        title.text("test");
+                    }
+                }
+                {
                     let mut body = html.element_normal(qualname!(html, "body"), EmptyAttrs::new());
                     body.text("more tests!");
                 }
@@ -115,7 +137,8 @@ mod tests {
 
         impl SerializeDocument for Doc {
             fn serialize_document<W: Write>(&self, s: DocumentSerializer<W>) {
-                let mut html = s.doctype("html").node(qualname!(html, "html"), EmptyAttrs::new());
+                let mut s = s.doctype("html").node();
+                let mut html = s.element_normal(qualname!(html, "html"), EmptyAttrs::new());
                 let mut body = html.element_normal(qualname!(html, "body"), EmptyAttrs::new());
                 Node(0).serialize_node(&mut body);
 
@@ -151,11 +174,13 @@ mod tests {
 
         impl SerializeDocument for Doc {
             fn serialize_document<W: Write>(&self, s: DocumentSerializer<W>) {
-                let mut html = s.doctype("html").node(qualname!(html, "html"), EmptyAttrs::new());
+                let mut s = s.doctype("html").node();
+                let mut html = s.element_normal(qualname!(html, "html"), EmptyAttrs::new());
                 {
                     let mut head = html.element_normal(qualname!(html, "head"), EmptyAttrs::new());
                     {
-                        let mut title = head.element_normal(qualname!(html, "title"), EmptyAttrs::new());
+                        let mut title = head.element_normal(qualname!(html, "title"),
+                                                            EmptyAttrs::new());
                         title.text("test");
                     }
                 }

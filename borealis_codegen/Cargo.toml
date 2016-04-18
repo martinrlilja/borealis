@@ -11,7 +11,7 @@ exclude = ["*.rs.bk"]
 crate-type = ["dylib", "rlib"]
 
 [dependencies]
-borealis = { version = "0.1", features = ["nightly"] }
+borealis = { path = "../borealis", features = ["nightly"] }
 aster = "0.15"
 quasi = "0.9"
 quasi_macros = "0.9"
