@@ -127,8 +127,7 @@ impl<'a> SerializeNode for &'a Handle {
         match *self.borrow() {
             (Node::Comment(ref comment), _) => s.comment(&comment),
             (Node::Element(ref name, ref attributes, ref children), _) => {
-                let mut node = s.element_normal(name.clone(),
-                                                attributes.iter().map(|a| (&a.0, &a.1[..])));
+                let mut node = s.element(name.clone(), attributes.iter().map(|a| (&a.0, &a.1[..])));
 
                 for child in children.iter() {
                     child.serialize_node(&mut node);

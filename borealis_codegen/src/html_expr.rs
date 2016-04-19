@@ -23,9 +23,7 @@ pub fn document_expression(cx: &ExtCtxt, builder: &AstBuilder, document: &Handle
                     let doctype = string_expr(builder, doctype);
                     quote_expr!(cx, s.doctype($doctype).node())
                 }
-                None => {
-                    quote_expr!(cx, s.node())
-                }
+                None => quote_expr!(cx, s.node()),
             };
 
             match *child {
@@ -72,7 +70,7 @@ pub fn node_expression(cx: &ExtCtxt, builder: &AstBuilder, node: &Handle) -> P<E
                                               .map(|c| node_expression(cx, builder, c))
                                               .collect();
             let expr = quote_expr!(cx, {
-                s.element_normal($name, $attrs_expr.iter())
+                s.element($name, $attrs_expr.iter())
             });
 
             if child_exprs.len() == 0 {

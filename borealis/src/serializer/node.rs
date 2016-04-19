@@ -34,10 +34,10 @@ impl<'a, 'b: 'a, 'c: 'b, 'd: 'c, 'w: 'd, W: Write> NodeSerializer<'c, 'd, 'w, W>
         self.serializer.write_comment(comment);
     }
 
-    pub fn element_normal<'i, I, II>(&'a mut self,
-                                     name: QualName,
-                                     attrs: I)
-                                     -> NodeSerializer<'a, 'd, 'w, W>
+    pub fn element<'i, I, II>(&'a mut self,
+                              name: QualName,
+                              attrs: I)
+                              -> NodeSerializer<'a, 'd, 'w, W>
         where I: Iterator<Item = II>,
               II: Into<Attr<'i>>
     {
