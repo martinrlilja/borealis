@@ -18,18 +18,26 @@ pub fn document_expression(cx: &ExtCtxt, builder: &AstBuilder, document: &Handle
                 None => quote_expr!(cx, {}),
             };
 
-            match *doctype {
+            let doctype_expr = match *doctype {
                 Some(ref doctype) => {
                     let doctype = string_expr(builder, doctype);
+                    quote_expr!(cx, s.doctype($doctype).node())
+                }
+                None => {
+                    quote_expr!(cx, s.node())
+                }
+            };
+
+            match *child {
+                Some(_) => {
                     quote_expr!(cx, {
-                        let mut s = s.doctype($doctype).node();
+                        let mut s = $doctype_expr;
                         $child_expr
                     })
                 }
                 None => {
                     quote_expr!(cx, {
-                        let mut s = s.node();
-                        $child_expr
+                        $doctype_expr;
                     })
                 }
             }
@@ -63,11 +71,20 @@ pub fn node_expression(cx: &ExtCtxt, builder: &AstBuilder, node: &Handle) -> P<E
             let child_exprs: Vec<_> = children.iter()
                                               .map(|c| node_expression(cx, builder, c))
                                               .collect();
+            let expr = quote_expr!(cx, {
+                s.element_normal($name, $attrs_expr.iter())
+            });
 
-            quote_expr!(cx, {
-                let mut s = s.element_normal($name, $attrs_expr.iter());
-                $child_exprs
-            })
+            if child_exprs.len() == 0 {
+                quote_expr!(cx, {
+                    $expr;
+                })
+            } else {
+                quote_expr!(cx, {
+                    let mut s = $expr;
+                    $child_exprs
+                })
+            }
         }
         _ => panic!("expected comment, text or element, got {:?}", node),
     }
