@@ -9,7 +9,7 @@ extern crate string_cache as sc;
 pub use html5ever::tendril;
 pub use dom::{Document, Fragment};
 
-mod dom;
+pub mod dom;
 pub mod serialize;
 
 pub mod string_cache {

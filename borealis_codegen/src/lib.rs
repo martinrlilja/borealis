@@ -11,7 +11,7 @@ extern crate string_cache;
 #[macro_use]
 extern crate syntax;
 
-use borealis::html::{Document, Node};
+use borealis::{Document, Fragment};
 
 use std::rc::Rc;
 use std::path::Path;
@@ -108,7 +108,7 @@ fn build_document_template_item(cx: &ExtCtxt,
 
     let file = try!(get_file(cx, item, &annotation));
 
-    let document = Document::parse_str(&file);
+    let document = Document::parse_str(&file).handle();
     let generics = match item.node {
         ItemKind::Struct(_, ref generics) => generics,
         _ => {
@@ -121,7 +121,7 @@ fn build_document_template_item(cx: &ExtCtxt,
     let impl_generics = builder.from_generics(generics.clone())
                                .add_ty_param_bound(builder.path()
                                                           .global()
-                                                          .ids(&["borealis", "IntoDocument"])
+                                                          .ids(&["borealis", "serialize", "SerializeDocument"])
                                                           .build())
                                .build();
     let ty = builder.ty()
@@ -136,9 +136,12 @@ fn build_document_template_item(cx: &ExtCtxt,
     let document_expr = document_expression(cx, builder, &document);
 
     Ok(quote_item!(cx,
-            impl $impl_generics ::borealis::IntoDocument
-                for $ty $where_clause {
-                fn into_document(self) -> ::borealis::html::Document {
+            impl $impl_generics ::borealis::serialize::SerializeDocument for $ty
+                $where_clause
+            {
+                fn serialize_document<W>(self, s: ::borealis::serialize::DocumentSerializer<W>)
+                    where W: ::std::io::Write
+                {
                     $document_expr
                 }
             })
@@ -174,7 +177,7 @@ fn build_fragment_template_item(cx: &ExtCtxt,
 
     let file = try!(get_file(cx, item, &annotation));
 
-    let fragment = Node::parse_str(&file);
+    let handles = Fragment::parse_str(&file).handles();
     let generics = match item.node {
         ItemKind::Struct(_, ref generics) => generics,
         _ => {
@@ -187,7 +190,7 @@ fn build_fragment_template_item(cx: &ExtCtxt,
     let impl_generics = builder.from_generics(generics.clone())
                                .add_ty_param_bound(builder.path()
                                                           .global()
-                                                          .ids(&["borealis", "IntoNodes"])
+                                                          .ids(&["borealis", "serialize", "SerializeNode"])
                                                           .build())
                                .build();
     let ty = builder.ty()
@@ -198,25 +201,19 @@ fn build_fragment_template_item(cx: &ExtCtxt,
                     .build();
 
     let where_clause = &impl_generics.where_clause;
-
-    let node_exprs = fragment.iter().map(|e| node_expression(cx, builder, e));
-    let node_exprs = builder.expr().vec().with_exprs(node_exprs).build();
+    let exprs: Vec<_> = handles.iter().map(|e| node_expression(cx, builder, e)).collect();
 
     Ok(quote_item!(cx,
-            impl $impl_generics ::borealis::IntoNodes
-                for $ty $where_clause {
-                fn into_nodes(self) -> Vec<::borealis::html::Node> {
-                    let exprs: Vec<Vec<::borealis::html::Node>> = $node_exprs;
-                    let mut out = Vec::with_capacity(exprs.len());
-
-                    for expr in exprs {
-                        out.extend(expr);
-                    }
-
-                    out
+            impl $impl_generics ::borealis::serialize::SerializeNode for $ty
+                $where_clause
+            {
+                fn serialize_node<W>(self, s: &mut ::borealis::serialize::NodeSerializer<W>)
+                    where W: ::std::io::Write
+                {
+                    $exprs
                 }
-            })
-           .unwrap())
+            }
+        ).unwrap())
 }
 
 #[plugin_registrar]

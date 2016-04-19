@@ -7,8 +7,8 @@ use std::io::Read;
 use std::fs::File;
 use std::path::Path;
 
-use borealis::html::Document;
-use borealis::IntoDocument;
+use borealis::Document;
+use borealis::serialize::{SerializeDocument, serialize};
 
 #[template_document(file="test_template.html")]
 struct TestTemplate {
@@ -24,8 +24,8 @@ fn test_test_template() {
             value: 10,
         }
     };
-    let document_a = serialize(template.into_document());
-    let document_b = serialize(read_document("tests/test_template_expected.html"));
+    let document_a = serialize_doc(template);
+    let document_b = serialize_doc(read_document("tests/test_template_expected.html"));
 
     assert_eq!(document_a, document_b);
 }
@@ -48,8 +48,8 @@ fn read_document<P: AsRef<Path>>(path: P) -> Document {
     Document::parse_str(&file_str)
 }
 
-fn serialize(document: Document) -> String {
+fn serialize_doc<T: SerializeDocument>(document: T) -> String {
     let mut w = Vec::new();
-    document.serialize(&mut w).unwrap();
+    serialize(&mut w, document).unwrap();
     String::from_utf8(w).unwrap()
 }

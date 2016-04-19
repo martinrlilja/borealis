@@ -26,10 +26,14 @@ impl Document {
         let dom = parser.one(s.as_bytes());
         Document { node: dom.document() }
     }
+
+    pub fn handle(self) -> Handle {
+        self.node
+    }
 }
 
 impl SerializeDocument for Document {
-    fn serialize_document<W: Write>(&self, s: DocumentSerializer<W>) {
+    fn serialize_document<W: Write>(self, s: DocumentSerializer<W>) {
         self.node.serialize_document(s);
     }
 }
@@ -48,6 +52,10 @@ impl Fragment {
                          .from_utf8();
         let dom = parser.one(s.as_bytes());
         Fragment { nodes: dom.fragment() }
+    }
+
+    pub fn handles(self) -> Vec<Handle> {
+        self.nodes
     }
 }
 
@@ -97,7 +105,7 @@ impl PartialEq for Handle {
 }
 
 impl SerializeDocument for Handle {
-    fn serialize_document<W: Write>(&self, s: DocumentSerializer<W>) {
+    fn serialize_document<W: Write>(self, s: DocumentSerializer<W>) {
         match *self.borrow() {
             (Node::Document(ref doctype, ref node), _) => {
                 let mut s = match *doctype {

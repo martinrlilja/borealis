@@ -14,7 +14,7 @@
 
             <div>{{ format!("a counter: {}", 4) }}</div>
 
-            <h2>Test template says: <span>{{ self.value }}</span></h2>
+            <h2>Test template says: <span>{{ self.value.clone() }}</span></h2>
 
             <p>{{ (1..5).map(|v| format!("{}, ", v)) }}</p>
 

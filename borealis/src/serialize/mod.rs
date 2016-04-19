@@ -1,5 +1,7 @@
 
+use std::cell::RefCell;
 use std::io::{Result, Write};
+use std::mem;
 
 use html5ever;
 use html5ever::serialize::{SerializeOpts, TraversalScope};
@@ -15,7 +17,7 @@ mod node;
 mod serializer;
 
 pub trait SerializeDocument {
-    fn serialize_document<W: Write>(&self, DocumentSerializer<W>);
+    fn serialize_document<W: Write>(self, DocumentSerializer<W>);
 }
 
 pub trait SerializeNode {
@@ -23,6 +25,12 @@ pub trait SerializeNode {
 }
 
 impl SerializeNode for String {
+    fn serialize_node<W: Write>(self, s: &mut NodeSerializer<W>) {
+        s.text(&self);
+    }
+}
+
+impl<'a> SerializeNode for &'a String {
     fn serialize_node<W: Write>(self, s: &mut NodeSerializer<W>) {
         s.text(&self);
     }
@@ -38,7 +46,7 @@ pub trait SerializeNodes {
     fn serialize_node<W: Write>(self, &mut NodeSerializer<W>);
 }
 
-impl<I: SerializeNode, T: Iterator<Item = I>> SerializeNodes for T {
+impl<I: SerializeNode, T: IntoIterator<Item = I>> SerializeNodes for T {
     fn serialize_node<W: Write>(self, s: &mut NodeSerializer<W>) {
         for node in self {
             node.serialize_node(s);
@@ -46,9 +54,9 @@ impl<I: SerializeNode, T: Iterator<Item = I>> SerializeNodes for T {
     }
 }
 
-struct Serializable<'a, T: 'a + SerializeDocument>(&'a T);
+struct Serializable<T: SerializeDocument>(RefCell<Option<T>>);
 
-impl<'a, T: SerializeDocument> html5ever::serialize::Serializable for Serializable<'a, T> {
+impl<T: SerializeDocument> html5ever::serialize::Serializable for Serializable<T> {
     fn serialize<'w, W: Write>(&self,
                                serializer: &mut html5ever::serialize::Serializer<'w, W>,
                                _: TraversalScope)
@@ -56,19 +64,28 @@ impl<'a, T: SerializeDocument> html5ever::serialize::Serializable for Serializab
         let mut serializer = Serializer::new(serializer);
 
         {
+            let mut doc = self.0.borrow_mut();
+            let doc = if doc.is_some() {
+                let mut x = None;
+                mem::swap(&mut (*doc), &mut x);
+                x.unwrap()
+            } else {
+                panic!("value already used");
+            };
+
             let doc_ser = document::new_doc_ser(&mut serializer);
-            self.0.serialize_document(doc_ser);
+            doc.serialize_document(doc_ser);
         }
 
         serializer.error()
     }
 }
 
-pub fn serialize<'w, W, T>(writer: &mut W, document: &T) -> Result<()>
+pub fn serialize<'w, W, T>(writer: &mut W, document: T) -> Result<()>
     where W: 'w + Write,
           T: SerializeDocument
 {
-    html5ever::serialize::serialize(writer, &Serializable(document), SerializeOpts::default())
+    html5ever::serialize::serialize(writer, &Serializable(RefCell::new(Some(document))), SerializeOpts::default())
 }
 
 #[cfg(test)]
@@ -83,10 +100,10 @@ mod tests {
         struct Doc;
 
         impl SerializeDocument for Doc {
-            fn serialize_document<W: Write>(&self, _: DocumentSerializer<W>) {}
+            fn serialize_document<W: Write>(self, _: DocumentSerializer<W>) {}
         }
 
-        assert_eq!(ser(&Doc), "");
+        assert_eq!(ser(Doc), "");
     }
 
     #[test]
@@ -94,13 +111,13 @@ mod tests {
         struct Doc;
 
         impl SerializeDocument for Doc {
-            fn serialize_document<W: Write>(&self, s: DocumentSerializer<W>) {
+            fn serialize_document<W: Write>(self, s: DocumentSerializer<W>) {
                 let mut s = s.doctype("html").node();
                 s.element_normal(qualname!(html, "html"), EmptyAttrs::new());
             }
         }
 
-        assert_eq!(ser(&Doc), "<!DOCTYPE html><html></html>");
+        assert_eq!(ser(Doc), "<!DOCTYPE html><html></html>");
     }
 
     #[test]
@@ -108,7 +125,7 @@ mod tests {
         struct Doc;
 
         impl SerializeDocument for Doc {
-            fn serialize_document<W: Write>(&self, s: DocumentSerializer<W>) {
+            fn serialize_document<W: Write>(self, s: DocumentSerializer<W>) {
                 let mut s = s.doctype("html").node();
                 let mut html = s.element_normal(qualname!(html, "html"), EmptyAttrs::new());
                 {
@@ -126,7 +143,7 @@ mod tests {
             }
         }
 
-        assert_eq!(ser(&Doc),
+        assert_eq!(ser(Doc),
                    "<!DOCTYPE html><html><head><title>test</title></head><body>more \
                     tests!</body></html>");
     }
@@ -136,7 +153,7 @@ mod tests {
         struct Doc;
 
         impl SerializeDocument for Doc {
-            fn serialize_document<W: Write>(&self, s: DocumentSerializer<W>) {
+            fn serialize_document<W: Write>(self, s: DocumentSerializer<W>) {
                 let mut s = s.doctype("html").node();
                 let mut html = s.element_normal(qualname!(html, "html"), EmptyAttrs::new());
                 let mut body = html.element_normal(qualname!(html, "body"), EmptyAttrs::new());
@@ -162,7 +179,7 @@ mod tests {
             }
         }
 
-        assert_eq!(ser(&Doc),
+        assert_eq!(ser(Doc),
                    "<!DOCTYPE \
                     html><html><body><p>0</p><p>1</p><p>2</p><p>3</p><p>4</p></body></html>");
     }
@@ -173,7 +190,7 @@ mod tests {
         struct Doc;
 
         impl SerializeDocument for Doc {
-            fn serialize_document<W: Write>(&self, s: DocumentSerializer<W>) {
+            fn serialize_document<W: Write>(self, s: DocumentSerializer<W>) {
                 let mut s = s.doctype("html").node();
                 let mut html = s.element_normal(qualname!(html, "html"), EmptyAttrs::new());
                 {
@@ -193,12 +210,12 @@ mod tests {
 
         b.iter(|| {
             let mut writer = Vec::new();
-            serialize(&mut writer, &Doc).unwrap();
+            serialize(&mut writer, Doc).unwrap();
             writer
         });
     }
 
-    fn ser<T: SerializeDocument>(document: &T) -> String {
+    fn ser<T: SerializeDocument>(document: T) -> String {
         let mut writer = Vec::new();
         serialize(&mut writer, document).unwrap();
         String::from_utf8(writer).unwrap()
