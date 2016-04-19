@@ -1,160 +1,21 @@
 
 use std::borrow::Cow;
-use std::cell::{Ref, RefCell};
+use std::cell::Ref;
 use std::collections::HashSet;
-use std::io::Write;
-use std::ops::Deref;
-use std::rc::{Rc, Weak};
 
-use html5ever::{ParseOpts, parse_document, parse_fragment};
 use html5ever::Attribute;
 use html5ever::tree_builder::{TreeSink, QuirksMode, NodeOrText};
 use html5ever::tendril::{StrTendril, TendrilSink};
 
 use string_cache::QualName;
 
-use serializer::{SerializeDocument, SerializeNode, DocumentSerializer, NodeSerializer};
+pub use self::document::Document;
+pub use self::fragment::Fragment;
+pub use self::handle::{Node, Handle, WeakHandle};
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct Document {
-    node: Handle,
-}
-
-impl Document {
-    pub fn parse_str(s: &str) -> Document {
-        let parser = parse_document(Dom::new(), ParseOpts::default()).from_utf8();
-        let dom = parser.one(s.as_bytes());
-        Document { node: dom.document() }
-    }
-
-    pub fn handle(self) -> Handle {
-        self.node
-    }
-}
-
-impl SerializeDocument for Document {
-    fn serialize_document<W: Write>(self, s: DocumentSerializer<W>) {
-        self.node.serialize_document(s);
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub struct Fragment {
-    nodes: Vec<Handle>,
-}
-
-impl Fragment {
-    pub fn parse_str(s: &str) -> Fragment {
-        let parser = parse_fragment(Dom::new(),
-                                    ParseOpts::default(),
-                                    qualname!(html, "body"),
-                                    Vec::new())
-                         .from_utf8();
-        let dom = parser.one(s.as_bytes());
-        Fragment { nodes: dom.fragment() }
-    }
-
-    pub fn handles(self) -> Vec<Handle> {
-        self.nodes
-    }
-}
-
-impl SerializeNode for Fragment {
-    fn serialize_node<W: Write>(self, s: &mut NodeSerializer<W>) {
-        for child in self.nodes.iter() {
-            child.serialize_node(s);
-        }
-    }
-}
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum Node {
-    Comment(StrTendril),
-    Document(Option<StrTendril>, Option<Handle>),
-    Element(QualName, Vec<(QualName, StrTendril)>, Vec<Handle>),
-    Text(StrTendril),
-}
-
-#[derive(Clone, Debug)]
-pub struct Handle(Rc<RefCell<(Node, Option<WeakHandle>)>>);
-
-impl Handle {
-    fn downgrade(&self) -> WeakHandle {
-        WeakHandle(Rc::downgrade(&self.0))
-    }
-}
-
-impl From<Node> for Handle {
-    fn from(node: Node) -> Handle {
-        Handle(Rc::new(RefCell::new((node, None))))
-    }
-}
-
-impl Deref for Handle {
-    type Target = Rc<RefCell<(Node, Option<WeakHandle>)>>;
-
-    fn deref(&self) -> &Rc<RefCell<(Node, Option<WeakHandle>)>> {
-        &self.0
-    }
-}
-
-impl PartialEq for Handle {
-    fn eq(&self, other: &Handle) -> bool {
-        self.borrow().0 == other.borrow().0
-    }
-}
-
-impl SerializeDocument for Handle {
-    fn serialize_document<W: Write>(self, s: DocumentSerializer<W>) {
-        match *self.borrow() {
-            (Node::Document(ref doctype, ref node), _) => {
-                let mut s = match *doctype {
-                    Some(ref name) => s.doctype(&name).node(),
-                    None => s.node(),
-                };
-
-                if let Some(ref node) = *node {
-                    node.serialize_node(&mut s)
-                }
-            }
-            _ => panic!("expected document, got: {:?}", self),
-        }
-    }
-}
-
-impl<'a> SerializeNode for &'a Handle {
-    fn serialize_node<W: Write>(self, s: &mut NodeSerializer<W>) {
-        match *self.borrow() {
-            (Node::Comment(ref comment), _) => s.comment(&comment),
-            (Node::Element(ref name, ref attributes, ref children), _) => {
-                let mut node = s.element(name.clone(), attributes.iter().map(|a| (&a.0, &a.1[..])));
-
-                for child in children.iter() {
-                    child.serialize_node(&mut node);
-                }
-            }
-            (Node::Text(ref text), _) => s.text(&text),
-            _ => panic!("expected comment, element or text, got: {:?}", self),
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct WeakHandle(Weak<RefCell<(Node, Option<WeakHandle>)>>);
-
-impl WeakHandle {
-    fn upgrade(&self) -> Handle {
-        Handle(self.0.upgrade().unwrap())
-    }
-}
-
-impl Deref for WeakHandle {
-    type Target = Weak<RefCell<(Node, Option<WeakHandle>)>>;
-
-    fn deref(&self) -> &Weak<RefCell<(Node, Option<WeakHandle>)>> {
-        &self.0
-    }
-}
+mod document;
+mod fragment;
+mod handle;
 
 #[derive(Debug)]
 pub struct Dom {
