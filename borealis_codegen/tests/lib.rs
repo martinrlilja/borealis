@@ -16,6 +16,11 @@ struct TestTemplate {
     fragment: TestFragment,
 }
 
+#[template_fragment(file="test_fragment.html", trim)]
+struct TestFragment {
+    value: i32,
+}
+
 #[test]
 fn test_test_template() {
     let template = TestTemplate {
@@ -24,15 +29,39 @@ fn test_test_template() {
             value: 10,
         }
     };
-    let document_a = serialize_doc(template);
-    let document_b = serialize_doc(read_document("tests/test_template_expected.html"));
-
-    assert_eq!(document_a, document_b);
+    
+    test_document(template, "tests/test_template_expected.html");
 }
 
-#[template_fragment(file="test_fragment.html", trim)]
-struct TestFragment {
-    value: i32,
+#[template_document(file="empty.html")]
+struct EmptyTemplate;
+
+#[test]
+fn test_empty_template() {
+    test_document(EmptyTemplate, "tests/empty_expected.html");
+}
+
+#[template_document(file="doctype.html")]
+struct DoctypeTemplate;
+
+#[test]
+fn test_doctype_template() {
+    test_document(DoctypeTemplate, "tests/doctype_expected.html");
+}
+
+#[template_document(file="element.html")]
+struct ElementTemplate;
+
+#[test]
+fn test_element_template() {
+    test_document(ElementTemplate, "tests/element_expected.html");
+}
+
+fn test_document<T: SerializeDocument>(document: T, file: &str) {
+    let document_a = serialize_doc(document);
+    let document_b = serialize_doc(read_document(file));
+
+    assert_eq!(document_a, document_b);
 }
 
 fn read_document<P: AsRef<Path>>(path: P) -> Document {
