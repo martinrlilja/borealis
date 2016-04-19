@@ -14,7 +14,7 @@ Borealis is a templating engine for HTML5 written in Rust.
 #![feature(plugin)]
 #![plugin(borealis_codegen)]
 
-// Let the plugin derive `IntoDocument` for us.
+// Let the plugin derive `SerializeDocument` for us.
 #[template_document(file="template.html")]
 struct Template {
     value: String,
@@ -32,9 +32,11 @@ The template file needs to be in the same directory as the code file.
 </html>
 ```
 
-You can now call `borealis::IntoDocument::into_document(self)` on a `Template` to get the document tree. When you do, you probably want to serialize it.
+You can now call `borealis::serializer::serialize` on a `Template` to serialize it to a writer.
 
 ```rust
+use borealis::serializer;
+
 // Create a buffer which we can write too.
 // Normally this would be a TCP stream or similar.
 let mut writer: Vec<u8> = Vec::new();
@@ -45,8 +47,7 @@ let template = Template {
 };
 
 // Turn it into a document and serialize it into our buffer.
-let document = template.into_document();
-document.serialize(&mut writer);
+serializer::serialize(&mut writer, template);
 ```
 
 ## Fragments
@@ -71,7 +72,7 @@ As with the document template, the file needs to be in the same directory as the
 </ul>
 ```
 
-The fragment can now be turned into a vector of nodes with `borealis::IntoNodes::into_nodes(self)`, or you can insert it into another fragment or document.
+The fragment can now be used inside another fragment or document.
 
 ## License
 
