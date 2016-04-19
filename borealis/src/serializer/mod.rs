@@ -85,7 +85,9 @@ pub fn serialize<'w, W, T>(writer: &mut W, document: T) -> Result<()>
     where W: 'w + Write,
           T: SerializeDocument
 {
-    html5ever::serialize::serialize(writer, &Serializable(RefCell::new(Some(document))), SerializeOpts::default())
+    html5ever::serialize::serialize(writer,
+                                    &Serializable(RefCell::new(Some(document))),
+                                    SerializeOpts::default())
 }
 
 #[cfg(test)]

@@ -14,9 +14,7 @@ pub fn document_expression(cx: &ExtCtxt, builder: &AstBuilder, document: &Handle
     match *document.borrow() {
         (Node::Document(ref doctype, ref child), _) => {
             let child_expr = match *child {
-                Some(ref child) => {
-                    node_expression(cx, builder, child)
-                }
+                Some(ref child) => node_expression(cx, builder, child),
                 None => quote_expr!(cx, {}),
             };
 
@@ -48,9 +46,7 @@ pub fn node_expression(cx: &ExtCtxt, builder: &AstBuilder, node: &Handle) -> P<E
                 s.comment($comment);
             })
         }
-        (Node::Text(ref text), _) => {
-            text_node_expression(cx, builder, &text[..])
-        }
+        (Node::Text(ref text), _) => text_node_expression(cx, builder, &text[..]),
         (Node::Element(ref name, ref attrs, ref children), _) => {
             let name = qualname_expr(cx, builder, name);
 
@@ -64,7 +60,9 @@ pub fn node_expression(cx: &ExtCtxt, builder: &AstBuilder, node: &Handle) -> P<E
             });
             let attrs_expr = builder.expr().slice().with_exprs(attrs_expr).build();
 
-            let child_exprs: Vec<_> = children.iter().map(|c| node_expression(cx, builder, c)).collect();
+            let child_exprs: Vec<_> = children.iter()
+                                              .map(|c| node_expression(cx, builder, c))
+                                              .collect();
 
             quote_expr!(cx, {
                 let mut s = s.element_normal($name, $attrs_expr.iter());

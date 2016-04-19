@@ -121,7 +121,9 @@ fn build_document_template_item(cx: &ExtCtxt,
     let impl_generics = builder.from_generics(generics.clone())
                                .add_ty_param_bound(builder.path()
                                                           .global()
-                                                          .ids(&["borealis", "serializer", "SerializeDocument"])
+                                                          .ids(&["borealis",
+                                                                 "serializer",
+                                                                 "SerializeDocument"])
                                                           .build())
                                .build();
     let ty = builder.ty()
@@ -190,7 +192,9 @@ fn build_fragment_template_item(cx: &ExtCtxt,
     let impl_generics = builder.from_generics(generics.clone())
                                .add_ty_param_bound(builder.path()
                                                           .global()
-                                                          .ids(&["borealis", "serializer", "SerializeNode"])
+                                                          .ids(&["borealis",
+                                                                 "serializer",
+                                                                 "SerializeNode"])
                                                           .build())
                                .build();
     let ty = builder.ty()
@@ -213,7 +217,8 @@ fn build_fragment_template_item(cx: &ExtCtxt,
                     $exprs
                 }
             }
-        ).unwrap())
+        )
+           .unwrap())
 }
 
 #[plugin_registrar]

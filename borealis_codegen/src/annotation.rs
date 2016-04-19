@@ -7,7 +7,7 @@ use std::collections::{HashMap, HashSet};
 
 pub struct Annotation {
     values: HashMap<InternedString, Lit>,
-    flags: HashSet<InternedString>
+    flags: HashSet<InternedString>,
 }
 
 impl Annotation {

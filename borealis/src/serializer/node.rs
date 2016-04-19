@@ -41,10 +41,11 @@ impl<'a, 'b: 'a, 'c: 'b, 'd: 'c, 'w: 'd, W: Write> NodeSerializer<'c, 'd, 'w, W>
         where I: Iterator<Item = II>,
               II: Into<Attr<'i>>
     {
-        self.serializer.start_elem(name.clone(), attrs.into_iter().map(|a| {
-            let a = a.into();
-            (a.0, a.1)
-        }));
+        self.serializer.start_elem(name.clone(),
+                                   attrs.into_iter().map(|a| {
+                                       let a = a.into();
+                                       (a.0, a.1)
+                                   }));
         NodeSerializer {
             name: Some(name),
             serializer: self.serializer,

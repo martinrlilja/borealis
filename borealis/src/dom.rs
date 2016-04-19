@@ -127,8 +127,6 @@ impl<'a> SerializeNode for &'a Handle {
         match *self.borrow() {
             (Node::Comment(ref comment), _) => s.comment(&comment),
             (Node::Element(ref name, ref attributes, ref children), _) => {
-                // Fix me: if element is a template, it is going to contain a
-                // document, which means that this will fail.
                 let mut node = s.element_normal(name.clone(),
                                                 attributes.iter().map(|a| (&a.0, &a.1[..])));
 
