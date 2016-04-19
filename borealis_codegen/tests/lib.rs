@@ -8,7 +8,7 @@ use std::fs::File;
 use std::path::Path;
 
 use borealis::Document;
-use borealis::serialize::{SerializeDocument, serialize};
+use borealis::serializer::{SerializeDocument, serialize};
 
 #[template_document(file="test_template.html")]
 struct TestTemplate {

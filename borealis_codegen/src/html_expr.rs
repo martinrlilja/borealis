@@ -1,7 +1,7 @@
 
 use aster::AstBuilder;
 
-use borealis::dom::{Document, Dom, Fragment, Handle, Node};
+use borealis::dom::{Handle, Node};
 
 use syntax::ast::Expr;
 use syntax::ext::base::ExtCtxt;
@@ -99,7 +99,7 @@ pub fn text_node_expression(cx: &ExtCtxt, builder: &AstBuilder, string: &str) ->
             let expr = cx.parse_expr(string[start + 2..end - 2].to_owned());
             exprs.push(quote_expr!(cx, {
                 #[allow(unused_imports)]
-                use ::borealis::serialize::{SerializeNode, SerializeNodes};
+                use ::borealis::serializer::{SerializeNode, SerializeNodes};
                 $expr.serialize_node(&mut s);
             }));
         }

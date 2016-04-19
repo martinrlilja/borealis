@@ -121,7 +121,7 @@ fn build_document_template_item(cx: &ExtCtxt,
     let impl_generics = builder.from_generics(generics.clone())
                                .add_ty_param_bound(builder.path()
                                                           .global()
-                                                          .ids(&["borealis", "serialize", "SerializeDocument"])
+                                                          .ids(&["borealis", "serializer", "SerializeDocument"])
                                                           .build())
                                .build();
     let ty = builder.ty()
@@ -136,10 +136,10 @@ fn build_document_template_item(cx: &ExtCtxt,
     let document_expr = document_expression(cx, builder, &document);
 
     Ok(quote_item!(cx,
-            impl $impl_generics ::borealis::serialize::SerializeDocument for $ty
+            impl $impl_generics ::borealis::serializer::SerializeDocument for $ty
                 $where_clause
             {
-                fn serialize_document<W>(self, s: ::borealis::serialize::DocumentSerializer<W>)
+                fn serialize_document<W>(self, s: ::borealis::serializer::DocumentSerializer<W>)
                     where W: ::std::io::Write
                 {
                     $document_expr
@@ -190,7 +190,7 @@ fn build_fragment_template_item(cx: &ExtCtxt,
     let impl_generics = builder.from_generics(generics.clone())
                                .add_ty_param_bound(builder.path()
                                                           .global()
-                                                          .ids(&["borealis", "serialize", "SerializeNode"])
+                                                          .ids(&["borealis", "serializer", "SerializeNode"])
                                                           .build())
                                .build();
     let ty = builder.ty()
@@ -204,10 +204,10 @@ fn build_fragment_template_item(cx: &ExtCtxt,
     let exprs: Vec<_> = handles.iter().map(|e| node_expression(cx, builder, e)).collect();
 
     Ok(quote_item!(cx,
-            impl $impl_generics ::borealis::serialize::SerializeNode for $ty
+            impl $impl_generics ::borealis::serializer::SerializeNode for $ty
                 $where_clause
             {
-                fn serialize_node<W>(self, s: &mut ::borealis::serialize::NodeSerializer<W>)
+                fn serialize_node<W>(self, s: &mut ::borealis::serializer::NodeSerializer<W>)
                     where W: ::std::io::Write
                 {
                     $exprs

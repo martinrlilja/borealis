@@ -10,7 +10,7 @@ pub use html5ever::tendril;
 pub use dom::{Document, Fragment};
 
 pub mod dom;
-pub mod serialize;
+pub mod serializer;
 
 pub mod string_cache {
     pub use sc::*;

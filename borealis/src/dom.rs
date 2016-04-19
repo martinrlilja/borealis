@@ -13,7 +13,7 @@ use html5ever::tendril::{StrTendril, TendrilSink};
 
 use string_cache::QualName;
 
-use serialize::{SerializeDocument, SerializeNode, DocumentSerializer, NodeSerializer};
+use serializer::{SerializeDocument, SerializeNode, DocumentSerializer, NodeSerializer};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Document {
