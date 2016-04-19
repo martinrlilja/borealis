@@ -6,7 +6,6 @@ extern crate html5ever;
 #[macro_use(qualname, ns, atom)]
 extern crate string_cache as sc;
 
-pub use html5ever::tendril;
 pub use dom::{Document, Fragment};
 
 pub mod dom;
