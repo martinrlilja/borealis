@@ -1,6 +1,6 @@
 [package]
 name    = "borealis_codegen"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Martin Risell Lilja <martin.risell.lilja@gmail.com>"]
 license = "MIT/Apache-2.0"
 repository = "https://github.com/martinrlilja/borealis"
@@ -11,7 +11,7 @@ exclude = ["*.rs.bk"]
 crate-type = ["dylib", "rlib"]
 
 [dependencies]
-borealis = { version = "0.1", features = ["nightly"] }
+borealis = { path = "../borealis", features = ["nightly"] }
 aster = "0.15"
 quasi = "0.9"
 quasi_macros = "0.9"
