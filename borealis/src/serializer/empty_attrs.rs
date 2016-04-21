@@ -1,6 +1,7 @@
 
 use std::marker::PhantomData;
-use string_cache::QualName;
+
+use super::node::Attr;
 
 pub struct EmptyAttrs<'a>(PhantomData<&'a ()>);
 
@@ -11,9 +12,9 @@ impl<'a> EmptyAttrs<'a> {
 }
 
 impl<'a> Iterator for EmptyAttrs<'a> {
-    type Item = (&'a QualName, &'a str);
+    type Item = Attr<'a>;
 
-    fn next(&mut self) -> Option<(&'a QualName, &'a str)> {
+    fn next(&mut self) -> Option<Attr<'a>> {
         None
     }
 }

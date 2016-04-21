@@ -215,6 +215,81 @@ mod tests {
         });
     }
 
+    #[cfg(feature = "nightly")]
+    #[bench]
+    fn bench_serialize_doctype(b: &mut Bencher) {
+        struct Doc;
+
+        impl SerializeDocument for Doc {
+            fn serialize_document<W: Write>(self, s: DocumentSerializer<W>) {
+                s.doctype("html").node();
+            }
+        }
+
+        b.iter(|| {
+            let mut writer = Vec::new();
+            serialize(&mut writer, Doc).unwrap();
+            writer
+        });
+    }
+
+    #[cfg(feature = "nightly")]
+    #[bench]
+    fn bench_serialize_element(b: &mut Bencher) {
+        struct Doc;
+
+        impl SerializeDocument for Doc {
+            fn serialize_document<W: Write>(self, s: DocumentSerializer<W>) {
+                let mut s = s.doctype("html").node();
+                s.element(qualname!(html, "html"), EmptyAttrs::new());
+            }
+        }
+
+        b.iter(|| {
+            let mut writer = Vec::new();
+            serialize(&mut writer, Doc).unwrap();
+            writer
+        });
+    }
+
+    #[cfg(feature = "nightly")]
+    #[bench]
+    fn bench_serialize_text(b: &mut Bencher) {
+        struct Doc;
+
+        impl SerializeDocument for Doc {
+            fn serialize_document<W: Write>(self, s: DocumentSerializer<W>) {
+                let mut s = s.doctype("html").node();
+                s.text("hello");
+            }
+        }
+
+        b.iter(|| {
+            let mut writer = Vec::new();
+            serialize(&mut writer, Doc).unwrap();
+            writer
+        });
+    }
+
+    #[cfg(feature = "nightly")]
+    #[bench]
+    fn bench_serialize_comment(b: &mut Bencher) {
+        struct Doc;
+
+        impl SerializeDocument for Doc {
+            fn serialize_document<W: Write>(self, s: DocumentSerializer<W>) {
+                let mut s = s.doctype("html").node();
+                s.comment("hello");
+            }
+        }
+
+        b.iter(|| {
+            let mut writer = Vec::new();
+            serialize(&mut writer, Doc).unwrap();
+            writer
+        });
+    }
+
     fn ser<T: SerializeDocument>(document: T) -> String {
         let mut writer = Vec::new();
         serialize(&mut writer, document).unwrap();
